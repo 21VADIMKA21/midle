@@ -5,7 +5,7 @@ import { useState } from "react";
 type Track = { title: string; artist: string; requester: string; source: string; duration: string };
 const initialQueue: Track[] = [
   { title: "Nightcall", artist: "Kavinsky", requester: "neonfox", source: "YouTube", duration: "4:18" },
-  { title: "After Dark", artist: "Mr.Kitty", requester: "soul.exe", source: "YouTube Music", duration: "4: tan" },
+  { title: "After Dark", artist: "Mr.Kitty", requester: "soul.exe", source: "YouTube Music", duration: "4:04" },
   { title: "Resonance", artist: "HOME", requester: "pixelwave", source: "YouTube", duration: "3:32" },
 ];
 
