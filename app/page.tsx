@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Track = { title: string; artist: string; requester: string; source: string; duration: string };
+type Viewer = { displayName: string | null; login: string | null };
 const initialQueue: Track[] = [
   { title: "Nightcall", artist: "Kavinsky", requester: "neonfox", source: "YouTube", duration: "4:18" },
   { title: "After Dark", artist: "Mr.Kitty", requester: "soul.exe", source: "YouTube Music", duration: "4:04" },
@@ -11,6 +12,29 @@ const initialQueue: Track[] = [
 
 export default function Home() {
   const [queue, setQueue] = useState(initialQueue);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.authenticated) setViewer(data.user);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function logout() {
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (response.ok) setViewer(null);
+    } catch {
+      // Keep the current UI state if the server is temporarily unavailable.
+    }
+  }
   const [url, setUrl] = useState("");
   const [notice, setNotice] = useState("Это демонстрационный режим — заявки пока не сохраняются на сервере.");
   function addRequest(e: React.FormEvent<HTMLFormElement>) {
@@ -21,7 +45,7 @@ export default function Home() {
   }
   return (
     <main className="shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a><div className="top-right"><span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span><a className="twitch-login" href="/api/auth/twitch">Войти через Twitch ↗</a><span className="channel">TWITCH CHANNEL</span></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a><div className="top-right"><span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span>{viewer ? <button className="twitch-login" type="button" onClick={logout}>Выйти ({viewer.displayName || viewer.login || "Twitch"})</button> : <a className="twitch-login" href="/api/auth/twitch">Войти через Twitch ↗</a>}<span className="channel">TWITCH CHANNEL</span></div></header>
       <section className="hero"><div><p className="eyebrow">COMMUNITY MUSIC PLAYER</p><h1>Твоя музыка.<br/><em>Наш общий эфир.</em></h1><p className="intro">Добавляй любимые треки в очередь и делай атмосферу стрима вместе с Fusion.</p></div><div className="hero-orb"><div className="orb-core">F<span>♪</span></div><div className="orb-ring ring-one"/><div className="orb-ring ring-two"/></div></section>
       <section className="content-grid">
         <div className="main-column">
