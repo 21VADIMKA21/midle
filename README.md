@@ -21,11 +21,16 @@ npm install
 cp .env.example .env
 ```
 
-Укажите строку подключения к PostgreSQL в `.env`:
+Настройте PostgreSQL, затем создайте приложение в [Twitch Developer Console](https://dev.twitch.tv/console/apps). В Twitch OAuth Redirect URL укажите точно тот адрес, который будет записан в `TWITCH_REDIRECT_URI`.
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
-```
+В `.env` заполните:
+- `DATABASE_URL` — строка подключения к PostgreSQL;
+- `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` — данные Twitch-приложения;
+- `TWITCH_REDIRECT_URI` — например, `http://localhost:3000/api/auth/callback`;
+- `APP_URL` — базовый адрес сайта;
+- `TOKEN_ENCRYPTION_KEY` — ключ шифрования, сгенерированный командой `openssl rand -base64 32`.
+
+Не публикуйте эти значения и не меняйте ключ шифрования после сохранения Twitch-токенов: без старого ключа их нельзя будет расшифровать.
 
 Затем примените миграции и запустите приложение:
 
@@ -41,7 +46,9 @@ npm run dev
 ## Что уже подготовлено
 
 - Next.js / React / TypeScript интерфейс.
-- PostgreSQL schema для каналов, пользователей, ролей, треков, заявок, очереди, голосов, локальных плееров и аудита.
+- PostgreSQL schema для каналов, пользователей, ролей, треков, заявок, очереди, голосов, локальных плееров, аудита, Twitch-токенов и сессий.
+- Twitch OAuth Authorization Code Flow, шифрование токенов AES-256-GCM и непрозрачные серверные сессии.
+- Endpoints входа/выхода и проверки сессии: `/api/auth/twitch`, `/api/auth/callback`, `/api/auth/me`, `/api/auth/logout`.
 - Безопасный повторный запуск SQL-миграций через `npm run db:migrate`.
 - Серверный пул подключений к PostgreSQL.
 - Health endpoint для мониторинга приложения и БД.
