@@ -221,3 +221,21 @@ Twitch требует иметь необходимые права или раз
 - [Pretzel supported platforms](https://help.pretzel.rocks/en-us/articles/15281300-what-are-the-supported-platforms)
 - [Twitch OAuth documentation](https://dev.twitch.tv/docs/authentication/)
 - [Twitch EventSub documentation](https://dev.twitch.tv/docs/eventsub/)
+
+
+### Дополнительные результаты проверки музыкальных интеграций (04.11.2026)
+
+- У Pretzel ранее существовало Twitch-расширение Song Requests, но оно снято с публикации; команда указывает, что старое расширение больше не функционировало после обновления каталога. Это не подтверждает наличие доступного публичного API для стороннего request-сервиса.
+- Справка Pretzel предупреждает, что скрипты, обращающиеся к частным API и превышающие лимиты, могут привести к блокировке. Не использовать reverse engineering или приватные endpoints.
+- Pretzel отдельно подтверждает наличие лицензирования для вещания музыки на Twitch. Но из доступных публичных материалов не следует однозначно, что эта лицензия распространяется на внешнюю автоматическую систему пользовательских заявок.
+- SoundScout (новое название/развитие Monstercat Gold) имеет Creator-tier, где Twitch указан среди разрешённых каналов. Однако в опубликованных условиях программные приложения перечислены среди сценариев, выходящих за рамки стандартных тарифов. Поэтому его нельзя считать разрешением на интеграцию с нашим приложением без письменного уточнения.
+- StreamBeats разрешает синхронизацию треков с видео на Twitch, но прямо запрещает использование в качестве музыкальной радиостанции. Request-сценарий не следует автоматически приравнивать к обычному фоновому использованию.
+
+Источники:
+- [Pretzel: удаление Song Requests extension](https://help.pretzel.rocks/en-us/articles/15281317-why-can-t-i-install-the-pretzel-rocks-song-requests-extension)
+- [Pretzel: API rate limits and bans](https://help.pretzel.rocks/en-us/articles/15281290-why-have-i-been-banned-from-pretzel)
+- [Pretzel: licensing agreement for Twitch broadcast](https://help.pretzel.rocks/en-us/articles/15281321-do-i-have-to-sign-a-contract-to-be-on-pretzel)
+- [SoundScout Terms of Service](https://soundscout.com/terms-of-service)
+- [StreamBeats Licensing](https://www.streambeats.com/licensing/)
+
+**Текущий вывод:** ни один из рассмотренных публичных вариантов пока не подтверждён как источник для Fusion Music request playback. До получения письменного разрешения не реализовывать воспроизведение этих каталогов через собственный клиент.
