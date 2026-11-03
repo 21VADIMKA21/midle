@@ -21,7 +21,7 @@ export default function Home() {
   }
   return (
     <main className="shell">
-      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a><div className="top-right"><span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span><span className="channel">TWITCH CHANNEL</span></div></header>
+      <header className="topbar"><a className="brand" href="#"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a><div className="top-right"><span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span><a className="twitch-login" href="/api/auth/twitch">Войти через Twitch ↗</a><span className="channel">TWITCH CHANNEL</span></div></header>
       <section className="hero"><div><p className="eyebrow">COMMUNITY MUSIC PLAYER</p><h1>Твоя музыка.<br/><em>Наш общий эфир.</em></h1><p className="intro">Добавляй любимые треки в очередь и делай атмосферу стрима вместе с Fusion.</p></div><div className="hero-orb"><div className="orb-core">F<span>♪</span></div><div className="orb-ring ring-one"/><div className="orb-ring ring-two"/></div></section>
       <section className="content-grid">
         <div className="main-column">
