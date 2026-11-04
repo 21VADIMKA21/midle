@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getPool } from "../../../../lib/db";
+import { getCurrentSession } from "../../../../lib/session";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 
 export const runtime = "nodejs";
@@ -80,6 +81,103 @@ export async function GET(request: NextRequest) {
       try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
     }
     return NextResponse.json({ error: "Player command service is temporarily unavailable." }, { status: 503 });
+  } finally {
+    client?.release();
+  }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ALLOWED_COMMANDS = new Set(["play", "pause", "resume", "skip", "set_volume", "resync_library"]);
+
+export async function POST(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== request.nextUrl.origin) {
+    return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
+  let client: PoolClient | null = null;
+
+  try {
+    const session = await getCurrentSession();
+    if (!session?.channelId || session.role !== "owner") {
+      return NextResponse.json({ error: "Only the channel owner can control the player." }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => null) as {
+      deviceId?: unknown;
+      command?: unknown;
+      payload?: unknown;
+    } | null;
+
+    if (
+      typeof body?.deviceId !== "string" || !UUID_PATTERN.test(body.deviceId) ||
+      typeof body.command !== "string" || !ALLOWED_COMMANDS.has(body.command)
+    ) {
+      return NextResponse.json({ error: "A valid deviceId and command are required." }, { status: 400 });
+    }
+
+    const payload = body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
+      ? body.payload as Record<string, unknown>
+      : {};
+
+    if (body.command === "set_volume" &&
+        (typeof payload.volume !== "number" || !Number.isFinite(payload.volume) || payload.volume < 0 || payload.volume > 1)) {
+      return NextResponse.json({ error: "Volume must be a number between 0 and 1." }, { status: 400 });
+    }
+
+    if (body.command === "play" &&
+        (typeof payload.requestId !== "string" || !UUID_PATTERN.test(payload.requestId))) {
+      return NextResponse.json({ error: "Play command requires a valid requestId." }, { status: 400 });
+    }
+
+    client = await getPool().connect();
+    await client.query("BEGIN");
+
+    const deviceResult = await client.query(
+      "SELECT id FROM player_devices WHERE id = $1 AND channel_id = $2 AND revoked_at IS NULL FOR UPDATE",
+      [body.deviceId, session.channelId],
+    );
+    if (!deviceResult.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Active player device not found." }, { status: 404 });
+    }
+
+    if (body.command === "play") {
+      const requestResult = await client.query(
+        `SELECT r.id
+         FROM requests r
+         JOIN tracks t ON t.id = r.track_id
+         WHERE r.id = $1 AND r.channel_id = $2
+           AND r.status = 'queued'
+           AND t.provider = 'local_library'`,
+        [payload.requestId, session.channelId],
+      );
+      if (!requestResult.rowCount) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Only queued tracks in the approved local library can be played." }, { status: 409 });
+      }
+    }
+
+    const commandResult = await client.query<{ id: string }>(
+      `INSERT INTO player_commands (device_id, channel_id, created_by, command, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
+       RETURNING id`,
+      [body.deviceId, session.channelId, session.userId, body.command, JSON.stringify(payload)],
+    );
+
+    await client.query(
+      `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
+       VALUES ($1, $2, 'player.command.queued', $3::jsonb)`,
+      [session.channelId, session.userId, JSON.stringify({ deviceId: body.deviceId, command: body.command, commandId: commandResult.rows[0].id })],
+    );
+
+    await client.query("COMMIT");
+    return NextResponse.json({ success: true, commandId: commandResult.rows[0].id, status: "pending" }, { status: 202 });
+  } catch {
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
+    }
+    return NextResponse.json({ error: "Player command could not be queued." }, { status: 503 });
   } finally {
     client?.release();
   }
