@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { getPool } from "../../../../../lib/db";
-import { getPlayerDevice } from "../../../../../lib/player-auth";
-import { invalidateQueueCache } from "../../../../../lib/queue-cache";
+import { getPool } from "../../../../lib/db";
+import { getPlayerDevice } from "../../../../lib/player-auth";
+import { invalidateQueueCache } from "../../../../lib/queue-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
