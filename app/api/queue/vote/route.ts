@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     await client.query("COMMIT");
     transactionOpen = false;
-    if (broadcasterId) invalidateQueueCache(broadcasterId);
+    invalidateQueueCache();
 
     return NextResponse.json({
       success: true,
