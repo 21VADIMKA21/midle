@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { getPool } from "../../../../lib/db";
+import { getPool, query } from "../../../../lib/db";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
 import { enqueueNextTrack } from "../../../../lib/player-queue";
@@ -57,6 +57,37 @@ function validateTrack(value: unknown): LibraryTrack | null {
     format: item.format.toLowerCase(),
     fileSize: item.fileSize,
   };
+}
+
+
+export async function GET(request: NextRequest) {
+  try {
+    const device = await getPlayerDevice(request);
+    if (!device) {
+      return NextResponse.json({ error: "Invalid or revoked player token." }, { status: 401 });
+    }
+
+    const result = await query<{
+      synced_at: Date;
+      track_count: number;
+      total_bytes: string;
+    }>(
+      "SELECT synced_at, track_count, total_bytes FROM player_library_syncs WHERE device_id = $1 LIMIT 1",
+      [device.id],
+    );
+
+    const sync = result.rows[0];
+    return NextResponse.json({
+      synced: !!sync,
+      trackCount: sync?.track_count || 0,
+      totalBytes: sync?.total_bytes || "0",
+      syncedAt: sync?.synced_at || null,
+    }, {
+      headers: { "Cache-Control": "no-store, max-age=0" },
+    });
+  } catch {
+    return NextResponse.json({ error: "Library status is temporarily unavailable." }, { status: 503 });
+  }
 }
 
 export async function POST(request: NextRequest) {
