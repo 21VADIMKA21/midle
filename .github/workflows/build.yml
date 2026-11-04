@@ -46,6 +46,10 @@ jobs:
         run: npm run lint
       - name: Test Twitch chat command parser
         run: npm run test:chat
+      - name: Check background worker syntax
+        run: |
+          node --check scripts/chat-worker.mjs
+          node --check scripts/start.mjs
       - name: Apply database migrations
         run: npm run db:migrate
       - name: Verify migrations are repeatable
