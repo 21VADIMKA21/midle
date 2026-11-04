@@ -44,3 +44,15 @@ CREATE INDEX IF NOT EXISTS player_commands_poll_idx
 
 CREATE INDEX IF NOT EXISTS player_commands_channel_created_idx
   ON player_commands(channel_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS player_events (
+  event_id UUID PRIMARY KEY,
+  device_id UUID NOT NULL REFERENCES player_devices(id) ON DELETE CASCADE,
+  channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  request_id UUID NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('started', 'finished', 'failed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS player_events_channel_created_idx
+  ON player_events(channel_id, created_at DESC);
