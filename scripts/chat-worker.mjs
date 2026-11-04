@@ -108,85 +108,95 @@ async function getOwnerContext(forceRefresh = false) {
     return ownerCache;
   }
 
-  const result = await pool.query(
-    `SELECT c.id AS channel_id, c.twitch_broadcaster_id,
-            u.id AS owner_user_id, tt.access_token_encrypted,
-            tt.refresh_token_encrypted, tt.scopes, tt.expires_at
-     FROM channels c
-     JOIN channel_roles cr ON cr.channel_id = c.id AND cr.role = 'owner'
-     JOIN users u ON u.id = cr.user_id
-     JOIN twitch_tokens tt ON tt.user_id = u.id
-     ORDER BY c.created_at ASC
-     LIMIT 1`,
-  );
-  const row = result.rows[0];
-  if (!row) throw new Error("The channel owner has not connected Twitch yet");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT c.id AS channel_id, c.twitch_broadcaster_id,
+              u.id AS owner_user_id, tt.access_token_encrypted,
+              tt.refresh_token_encrypted, tt.scopes, tt.expires_at
+       FROM channels c
+       JOIN channel_roles cr ON cr.channel_id = c.id AND cr.role = 'owner'
+       JOIN users u ON u.id = cr.user_id
+       JOIN twitch_tokens tt ON tt.user_id = u.id
+       ORDER BY c.created_at ASC
+       LIMIT 1
+       FOR UPDATE OF tt`,
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error("The channel owner has not connected Twitch yet");
 
-  let accessToken = decryptToken(row.access_token_encrypted);
-  let refreshToken = decryptToken(row.refresh_token_encrypted);
-  let scopes = row.scopes || [];
-  let expiresAt = new Date(row.expires_at);
+    let accessToken = decryptToken(row.access_token_encrypted);
+    let refreshToken = decryptToken(row.refresh_token_encrypted);
+    let scopes = row.scopes || [];
+    let expiresAt = new Date(row.expires_at);
 
-  if (expiresAt.getTime() < Date.now() + 120_000) {
-    const response = await fetch("https://id.twitch.tv/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: TWITCH_CLIENT_ID,
-        client_secret: TWITCH_CLIENT_SECRET,
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-      }),
-      cache: "no-store",
-    });
+    if (expiresAt.getTime() < Date.now() + 120_000) {
+      const response = await fetch("https://id.twitch.tv/oauth2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: TWITCH_CLIENT_ID,
+          client_secret: TWITCH_CLIENT_SECRET,
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
+        cache: "no-store",
+      });
 
-    if (!response.ok) throw new Error("Twitch token refresh failed");
-    const refreshed = await response.json();
-    if (!refreshed.access_token || !refreshed.refresh_token || !refreshed.expires_in) {
-      throw new Error("Twitch token refresh response was incomplete");
+      if (!response.ok) throw new Error("Twitch token refresh failed");
+      const refreshed = await response.json();
+      if (!refreshed.access_token || !refreshed.refresh_token || !refreshed.expires_in) {
+        throw new Error("Twitch token refresh response was incomplete");
+      }
+
+      accessToken = refreshed.access_token;
+      refreshToken = refreshed.refresh_token;
+      scopes = refreshed.scope?.length ? refreshed.scope : scopes;
+      expiresAt = new Date(Date.now() + refreshed.expires_in * 1000);
+
+      await client.query(
+        `UPDATE twitch_tokens
+         SET access_token_encrypted = $2,
+             refresh_token_encrypted = $3,
+             scopes = $4,
+             expires_at = $5,
+             updated_at = NOW()
+         WHERE user_id = $1`,
+        [
+          row.owner_user_id,
+          encryptToken(accessToken),
+          encryptToken(refreshToken),
+          scopes,
+          expiresAt,
+        ],
+      );
     }
 
-    accessToken = refreshed.access_token;
-    refreshToken = refreshed.refresh_token;
-    scopes = refreshed.scope?.length ? refreshed.scope : scopes;
-    expiresAt = new Date(Date.now() + refreshed.expires_in * 1000);
+    const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters"];
+    const missingScopes = requiredScopes.filter((scope) => !scopes.includes(scope));
+    if (missingScopes.length) {
+      throw new Error("Reconnect the broadcaster Twitch account and grant: " + missingScopes.join(", "));
+    }
 
-    await pool.query(
-      `UPDATE twitch_tokens
-       SET access_token_encrypted = $2,
-           refresh_token_encrypted = $3,
-           scopes = $4,
-           expires_at = $5,
-           updated_at = NOW()
-       WHERE user_id = $1`,
-      [
-        row.owner_user_id,
-        encryptToken(accessToken),
-        encryptToken(refreshToken),
-        scopes,
-        expiresAt,
-      ],
-    );
+    await client.query("COMMIT");
+    ownerCache = {
+      channelId: row.channel_id,
+      broadcasterId: row.twitch_broadcaster_id,
+      ownerUserId: row.owner_user_id,
+      accessToken,
+      scopes,
+      expiresAt: expiresAt.getTime(),
+      cacheUntil: Date.now() + 20_000,
+    };
+    return ownerCache;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
   }
-
-  const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters"];
-  const missingScopes = requiredScopes.filter((scope) => !scopes.includes(scope));
-  if (missingScopes.length) {
-    throw new Error("Reconnect the broadcaster Twitch account and grant: " + missingScopes.join(", "));
-  }
-
-  ownerCache = {
-    channelId: row.channel_id,
-    broadcasterId: row.twitch_broadcaster_id,
-    ownerUserId: row.owner_user_id,
-    accessToken,
-    scopes,
-    expiresAt: expiresAt.getTime(),
-    cacheUntil: Date.now() + 20_000,
-  };
-  return ownerCache;
 }
-
 async function getAppAccessToken() {
   if (appAccessToken && Date.now() < appTokenExpiresAt - 60_000) {
     return appAccessToken;
