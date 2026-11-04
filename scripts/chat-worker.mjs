@@ -701,9 +701,23 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
+async function waitForOwnerContext() {
+  while (!stopping) {
+    try {
+      await getOwnerContext(true);
+      return true;
+    } catch (error) {
+      console.warn("[fusion-chat] Waiting for broadcaster authorization:", error.message);
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+    }
+  }
+  return false;
+}
+
 async function start() {
   await acquireWorkerLock();
   console.log("[fusion-chat] Worker started");
+  if (!(await waitForOwnerContext())) return;
   connectEventSub(EVENTSUB_URL, false);
   keepaliveTimer = setInterval(() => {
     if (
