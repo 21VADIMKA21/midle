@@ -199,7 +199,7 @@ async function getOwnerContext(forceRefresh = false) {
       scopes = validatedScopes;
     }
 
-    const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters"];
+    const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters", "moderation:read"];
     const missingScopes = requiredScopes.filter((scope) => !scopes.includes(scope));
     if (missingScopes.length) {
       throw new Error("Reconnect the broadcaster Twitch account and grant: " + missingScopes.join(", "));
