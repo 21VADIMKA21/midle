@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
     await client.query("BEGIN");
 
     await client.query(
+      "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+      [device.channelId],
+    );
+
+    await client.query(
       `UPDATE player_commands pc
        SET status = 'acknowledged',
            acknowledged_at = COALESCE(pc.acknowledged_at, NOW()),
@@ -60,16 +65,6 @@ export async function GET(request: NextRequest) {
        RETURNING pc.command, pc.payload`,
       [device.id],
     );
-
-    const hasExpiredPlayCommand = expiredCommands.rows.some(
-      (expired) => expired.command === "play" && !!expired.payload?.requestId,
-    );
-    if (hasExpiredPlayCommand) {
-      await client.query(
-        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
-        [device.channelId],
-      );
-    }
 
     let failedPlayCommand = false;
     for (const expired of expiredCommands.rows) {
