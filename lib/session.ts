@@ -9,6 +9,7 @@ export type CurrentSession = {
   displayName: string | null;
   avatarUrl: string | null;
   channelId: string | null;
+  broadcasterId: string | null;
   role: "owner" | "moderator" | "vip" | null;
 };
 
@@ -25,6 +26,7 @@ export async function getCurrentSession(): Promise<CurrentSession | null> {
     avatar_url: string | null;
     channel_id: string | null;
     role: "owner" | "moderator" | "vip" | null;
+    broadcaster_id: string | null;
   }>(
     `SELECT
        u.id AS user_id,
@@ -33,9 +35,11 @@ export async function getCurrentSession(): Promise<CurrentSession | null> {
        u.display_name,
        u.avatar_url,
        s.channel_id,
+       c.twitch_broadcaster_id AS broadcaster_id,
        cr.role
      FROM sessions s
      JOIN users u ON u.id = s.user_id
+     LEFT JOIN channels c ON c.id = s.channel_id
      LEFT JOIN channel_roles cr
        ON cr.channel_id = s.channel_id AND cr.user_id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > NOW()
@@ -53,6 +57,7 @@ export async function getCurrentSession(): Promise<CurrentSession | null> {
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     channelId: row.channel_id,
+    broadcasterId: row.broadcaster_id,
     role: row.role,
   };
 }
