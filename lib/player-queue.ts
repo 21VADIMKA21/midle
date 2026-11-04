@@ -5,23 +5,23 @@ export async function enqueueNextTrack(
   channelId: string,
   createdBy: string | null = null,
 ): Promise<string | null> {
+  const settings = await client.query<{
+    requests_enabled: boolean;
+    music_rights_confirmed_at: Date | null;
+  }>(
+    "SELECT requests_enabled, music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+    [channelId],
+  );
+  if (!settings.rows[0]?.requests_enabled || !settings.rows[0].music_rights_confirmed_at) {
+    return null;
+  }
+
   const state = await client.query<{ current_request_id: string | null }>(
     "SELECT current_request_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
     [channelId],
   );
 
   if (!state.rows[0] || state.rows[0].current_request_id) {
-    return null;
-  }
-
-  const settings = await client.query<{
-    requests_enabled: boolean;
-    music_rights_confirmed_at: Date | null;
-  }>(
-    "SELECT requests_enabled, music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1",
-    [channelId],
-  );
-  if (!settings.rows[0]?.requests_enabled || !settings.rows[0].music_rights_confirmed_at) {
     return null;
   }
 
