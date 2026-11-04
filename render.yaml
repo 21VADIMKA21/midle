@@ -34,4 +34,5 @@ databases:
     region: frankfurt
     plan: 0.1c-256mb
     diskSizeGB: 1
+    ipAllowList: []
     postgresMajorVersion: "16"
