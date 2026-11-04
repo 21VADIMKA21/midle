@@ -198,6 +198,17 @@ export async function POST(request: NextRequest) {
         [device.id, device.channelId, tracks.length, totalBytes],
       );
 
+      // A changed library must be reviewed again before requests can reopen.
+      await client.query(
+        `UPDATE channel_settings
+         SET requests_enabled = FALSE,
+             music_rights_confirmed_at = NULL,
+             music_rights_confirmed_by = NULL,
+             updated_at = NOW()
+         WHERE channel_id = $1`,
+        [device.channelId],
+      );
+
       await client.query(
         `INSERT INTO audit_log (channel_id, action, details)
          VALUES ($1, 'player.library.synced', $2::jsonb)`,
