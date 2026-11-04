@@ -141,6 +141,8 @@ async function getOwnerContext(forceRefresh = false) {
           grant_type: "refresh_token",
           refresh_token: refreshToken,
         }),
+        signal: AbortSignal.timeout(10_000),
+
         cache: "no-store",
       });
 
@@ -175,6 +177,8 @@ async function getOwnerContext(forceRefresh = false) {
 
     const validationResponse = await fetch("https://id.twitch.tv/oauth2/validate", {
       headers: { Authorization: "Bearer " + accessToken },
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
     if (!validationResponse.ok) {
@@ -232,6 +236,8 @@ async function getAppAccessToken() {
       client_secret: TWITCH_CLIENT_SECRET,
       grant_type: "client_credentials",
     }),
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Twitch app access token request failed");
@@ -259,6 +265,8 @@ async function isChannelLive(owner) {
       Authorization: "Bearer " + appToken,
       "Client-Id": TWITCH_CLIENT_ID,
     },
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Twitch live status lookup failed");
@@ -284,6 +292,8 @@ async function getChattersTotal(owner) {
       Authorization: "Bearer " + owner.accessToken,
       "Client-Id": TWITCH_CLIENT_ID,
     },
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Twitch chatters lookup failed");
@@ -316,6 +326,8 @@ function sendChatMessage(owner, message, replyTo) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
     lastChatSendAt = Date.now();
@@ -727,6 +739,8 @@ async function createSubscription(sessionId) {
         session_id: sessionId,
       },
     }),
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
 
