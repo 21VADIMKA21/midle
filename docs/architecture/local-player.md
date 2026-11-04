@@ -1,25 +1,27 @@
-# Fusion Player Agent — desktop client specification
+# Fusion Player — installable browser player specification
 
 > Status: server-side player control plane implemented; Windows desktop client is next  
-> Target: Windows 10/11, first release  
+> Target: Chrome/Edge on Windows 10/11, first release  
 > Primary role: local audio playback, local library indexing, Twitch chat connection, OBS routing
 
 ## 1. Why a separate local agent
 
-The public site and request queue must remain available even when the streamer's PC is off. Audio playback and OBS capture, however, must happen on the streamer's PC. The desktop agent is therefore a separate component from the cloud web application.
+The public site and request queue must remain available even when the streamer's PC is off. Audio playback and OBS capture, however, must happen on the streamer's PC. The local player is therefore a separate page/app window from the cloud queue, even though it is delivered by the same web deployment.
 
 The first release will use an owner-curated local music library as the fallback provider. This avoids extracting audio from YouTube/Spotify or depending on an undocumented third-party API. Only files for which the channel owner has the necessary broadcast rights may be added.
 
-## 2. Desktop technology
+## 2. Local player technology
 
-- Electron desktop application, TypeScript, Node.js 22.
-- Windows-first packaging with an installer and auto-update path.
-- Main process handles filesystem access, device authentication, network polling and playback lifecycle.
-- Renderer process displays connection state, library folder, current track, volume and diagnostics.
-- `contextIsolation: true`, `nodeIntegration: false`; renderer never receives the device token or unrestricted filesystem access.
-- Store the device token with Electron `safeStorage` (Windows DPAPI-backed encryption). Never write it to plain-text settings or logs.
+First release: an installable Progressive Web App (PWA) running in a dedicated Chrome/Edge app window on Windows.
 
-Electron is selected because it reuses the project's TypeScript stack and gives us a maintainable Windows UI. Playback output is routed to a dedicated Windows audio device (for example a virtual audio cable) selected by the owner and captured as a separate OBS source.
+- Reuse the existing Next.js/React/TypeScript stack; no separate Electron installer or second runtime to maintain.
+- Use the File System Access API (`showDirectoryPicker`) to let the owner select the approved local music folder.
+- Persist the directory handle in IndexedDB; request permission again through an explicit user gesture if the browser revokes it.
+- Use the Web Audio/HTMLMediaElement playback pipeline. Where supported, `HTMLMediaElement.setSinkId()` selects the virtual audio output device directly.
+- Keep the device token in IndexedDB protected with Web Crypto AES-GCM and a non-extractable key. The server stores only its SHA-256 hash.
+- Use a strict Content Security Policy and never expose filesystem handles or device tokens to unrelated page components.
+
+The player window must remain open on the streamer's PC while music is playing. It can be minimized; closing the window or shutting down the PC makes the player offline, while the cloud website and queue remain available. If browser filesystem/audio APIs prove unreliable on the target PC, Electron remains the fallback without changing the server protocol.
 
 ## 3. Device pairing and authentication
 
@@ -30,7 +32,7 @@ Electron is selected because it reuses the project's TypeScript stack and gives 
 5. Every request from the player uses `Authorization: Bearer <device-token>`.
 6. The owner can revoke a device from the website; revoked tokens stop working immediately.
 
-A device token is not a Twitch OAuth token and has no Twitch API permissions. The desktop app never receives the Twitch client secret or refresh token.
+A device token is not a Twitch OAuth token and has no Twitch API permissions. The browser player never receives the Twitch client secret or refresh token.
 
 ## 4. Cloud-to-player protocol
 
@@ -105,10 +107,10 @@ Audio track separation is not a substitute for music rights. The exact Windows d
 - [x] Bearer-token validation, durable command polling/retry, acknowledgement and heartbeat endpoints.
 - [x] Idempotent track lifecycle events (`started`, `finished`, `failed`) that update the server queue.
 - [x] Owner dashboard for pairing and revoking the single active player device.
-- [ ] Electron shell with pairing and connection status.
-- [ ] Local folder scanner and catalog sync.
+- [ ] Installable Chrome/Edge PWA with pairing and connection status.
+- [ ] Local folder scanner and catalog sync using File System Access API.
 - [ ] Local audio playback and output-device selection.
 - [ ] Twitch EventSub chat integration.
-- [ ] OBS routing test and Windows installer.
+- [ ] OBS routing test and PWA installation instructions.
 
 The server currently supports one active player device per channel. This avoids two computers attempting to play the same queue simultaneously; multi-device failover can be added later with an explicit active-device selection mechanism.
