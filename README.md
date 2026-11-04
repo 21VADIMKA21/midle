@@ -8,7 +8,7 @@
 
 Production-БД и Twitch-приложение пока не подключены реальными секретами, поэтому публичный развёрнутый сервис ещё не готов к использованию. Полный end-to-end тест с реальным Twitch, локальными файлами и OBS остаётся обязательным перед запуском.
 
-Архитектура, решения по лицензированию и порядок разработки описаны в [документе архитектуры](docs/architecture/overview.md). Спецификация локального проигрывателя — в [local-player.md](docs/architecture/local-player.md).
+Архитектура, решения по лицензированию и порядок разработки описаны в [документе архитектуры](docs/architecture/overview.md). Спецификация локального проигрывателя — в [local-player.md](docs/architecture/local-player.md). Настройка аудио OBS — в [obs-audio.md](docs/operations/obs-audio.md).
 
 ## Требования
 
@@ -18,6 +18,14 @@ Production-БД и Twitch-приложение пока не подключен�
 - Chrome или Edge на Windows для локального Fusion Player
 
 ## Локальный запуск
+
+Для локальной PostgreSQL через Docker Desktop сначала выполни:
+
+```bash
+docker compose up -d --wait db
+```
+
+Затем:
 
 ```bash
 npm ci
