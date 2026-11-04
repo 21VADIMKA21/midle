@@ -5,12 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/start.mjs",
+    "start": "node --env-file-if-exists=.env scripts/start.mjs",
     "lint": "eslint .",
-    "db:migrate": "node scripts/migrate.mjs",
-    "db:smoke": "node scripts/smoke-db.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "db:smoke": "node --env-file-if-exists=.env scripts/smoke-db.mjs",
     "test:chat": "node --test scripts/chat-command.test.mjs",
-    "chat:worker": "node scripts/chat-worker.mjs"
+    "chat:worker": "node --env-file-if-exists=.env scripts/chat-worker.mjs"
   },
   "dependencies": {
     "next": "16.4.5",
