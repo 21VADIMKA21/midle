@@ -47,6 +47,27 @@ export async function POST(request: NextRequest) {
     );
 
     if (!eventInsert.rowCount) {
+      const existingEvent = await client.query<{
+        device_id: string;
+        channel_id: string;
+        request_id: string;
+        event_type: string;
+      }>(
+        "SELECT device_id, channel_id, request_id, event_type FROM player_events WHERE event_id = $1",
+        [body.eventId],
+      );
+      const existing = existingEvent.rows[0];
+      if (
+        !existing ||
+        existing.device_id !== device.id ||
+        existing.channel_id !== device.channelId ||
+        existing.request_id !== body.requestId ||
+        existing.event_type !== eventType
+      ) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return NextResponse.json({ error: "Event ID has already been used for a different player event." }, { status: 409 });
+      }
       await client.query("COMMIT");
       transactionOpen = false;
       return NextResponse.json({ success: true, duplicate: true });
