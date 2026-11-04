@@ -23,6 +23,11 @@ export type PlayerEngineContext = {
   setMessage: (value: string) => void;
 };
 
+async function hashFile(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function sendTrackEvent(
   token: string,
   eventType: "started" | "finished",
@@ -91,7 +96,19 @@ export async function playLocalRequest(
     : undefined;
   if (!fileHandle) throw new Error("local_file_missing");
 
+  if (!/^[a-f0-9]{64}$/i.test(providerTrackId)) {
+    throw new Error("invalid_local_track_hash");
+  }
+
   const file = await fileHandle.getFile();
+  if (file.size > 200_000_000) {
+    throw new Error("local_file_too_large");
+  }
+  const actualHash = await hashFile(file);
+  if (actualHash !== providerTrackId.toLowerCase()) {
+    throw new Error("local_file_changed_sync_library");
+  }
+
   const url = URL.createObjectURL(file);
 
   try {
