@@ -164,7 +164,7 @@ export default function DashboardPage() {
         <section className="dashboard-card">
           <h2>Нужен вход через Twitch</h2>
           <p>Авторизуйся под владельцем канала, чтобы подключить локальный проигрыватель.</p>
-          <a className="twitch-login" href="/api/auth/twitch">Войти через Twitch ↗</a>
+          <a className="twitch-login" href="/api/auth/twitch/owner">Подключить канал через Twitch ↗</a>
         </section>
       ) : viewer?.role !== "owner" ? (
         <section className="dashboard-card"><h2>Нет доступа</h2><p>У этой учётной записи нет прав владельца Fusion Music.</p></section>
