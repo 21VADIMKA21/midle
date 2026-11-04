@@ -239,6 +239,8 @@ export async function executePlayerCommand(
       local_file_changed_sync_library: "Файл изменился после синхронизации. Обнови библиотеку и подтверди права ещё раз.",
       local_file_too_large: "Файл слишком большой для локального проигрывателя.",
       invalid_local_track_hash: "У трека повреждён идентификатор. Синхронизируй библиотеку заново.",
+      NotFoundError: "Файл удалён или перемещён. Синхронизируй библиотеку заново.",
+      NotAllowedError: "Браузер потерял доступ к музыкальной папке. Разреши доступ и синхронизируй библиотеку заново.",
     };
     context.setMessage(friendlyErrors[errorCode] || "Ошибка команды проигрывателя: " + errorCode);
   }
