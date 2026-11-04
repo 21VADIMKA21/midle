@@ -286,6 +286,10 @@ async function enqueueNextTrack(client, channelId, createdBy) {
 }
 
 async function recordCommandEvent(client, owner, eventId, event, command) {
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2 || ':' || $3))",
+    [owner.channelId, event.chatter_user_id, command],
+  );
   const recent = await client.query(
     `SELECT 1 FROM twitch_chat_commands
      WHERE channel_id = $1
