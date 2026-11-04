@@ -7,7 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const token = cookies().get("fusion_session")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("fusion_session")?.value;
 
   if (token) {
     try {
