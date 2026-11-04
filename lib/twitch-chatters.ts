@@ -74,6 +74,8 @@ export async function getBroadcasterToken(broadcasterId: string): Promise<{
         grant_type: "refresh_token",
         refresh_token: refreshToken,
       }),
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
 
@@ -141,6 +143,8 @@ export async function getLiveChatters(
         Authorization: "Bearer " + token.accessToken,
         "Client-Id": clientId,
       },
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
 
