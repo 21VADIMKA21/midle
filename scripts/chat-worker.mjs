@@ -790,6 +790,7 @@ function connectEventSub(url, migrated) {
 
     if (messageType === "revocation") {
       console.error("[fusion-chat] EventSub subscription revoked:", message.payload?.subscription?.status);
+      ownerCache = null;
       void updateWorkerStatus("reconnecting");
       if (activeSocket === socket) socket.close();
     }
