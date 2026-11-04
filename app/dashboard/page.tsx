@@ -177,6 +177,7 @@ export default function DashboardPage() {
       ) : viewer?.role !== "owner" ? (
         <section className="dashboard-card"><h2>Нет доступа</h2><p>У этой учётной записи нет прав владельца Fusion Music.</p></section>
       ) : (
+        <>
         <section className="dashboard-card">
           <div className="dashboard-section-head">
             <div><p className="eyebrow">LOCAL PLAYER</p><h2>Проигрыватель</h2></div>
@@ -212,6 +213,7 @@ export default function DashboardPage() {
             {requestsEnabled ? "Закрыть приём заявок" : "Открыть приём заявок"}
           </button>
         </section>
+        </>
       )}
 
       <p className="dashboard-message">{message}</p>
