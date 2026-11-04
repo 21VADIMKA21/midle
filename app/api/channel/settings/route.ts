@@ -77,7 +77,14 @@ export async function POST(request: NextRequest) {
         "SELECT 1 FROM tracks WHERE provider = 'local_library' AND is_available = TRUE LIMIT 1",
       );
       const player = await client.query(
-        "SELECT 1 FROM player_devices WHERE channel_id = $1 AND revoked_at IS NULL LIMIT 1",
+        `SELECT 1
+         FROM player_devices pd
+         JOIN player_library_syncs pls ON pls.device_id = pd.id
+         WHERE pd.channel_id = $1
+           AND pd.revoked_at IS NULL
+           AND pls.track_count > 0
+           AND pls.synced_at > NOW() - INTERVAL '30 days'
+         LIMIT 1`,
         [session.channelId],
       );
       if (!library.rowCount || !player.rowCount) {
