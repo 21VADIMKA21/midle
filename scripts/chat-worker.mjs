@@ -34,8 +34,7 @@ let lockClient;
 let ownerCache = null;
 let appAccessToken = null;
 let appTokenExpiresAt = 0;
-let chattersCache = { total: null, expiresAt: 0 };
-let streamLiveCache = { live: null, expiresAt: 0 };
+let streamLiveCache = { live: null, viewerCount: null, expiresAt: 0 };
 let activeSocket = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
@@ -252,9 +251,9 @@ async function getAppAccessToken() {
   return appAccessToken;
 }
 
-async function isChannelLive(owner) {
+async function getLiveViewerCount(owner) {
   if (streamLiveCache.live !== null && streamLiveCache.expiresAt > Date.now()) {
-    return streamLiveCache.live;
+    return streamLiveCache.live ? streamLiveCache.viewerCount : null;
   }
 
   const url = new URL("https://api.twitch.tv/helix/streams");
@@ -266,42 +265,19 @@ async function isChannelLive(owner) {
       "Client-Id": TWITCH_CLIENT_ID,
     },
     signal: AbortSignal.timeout(10_000),
-
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Twitch live status lookup failed");
 
   const data = await response.json();
-  const live = Array.isArray(data.data) && data.data.length > 0;
-  streamLiveCache = { live, expiresAt: Date.now() + 10_000 };
-  return live;
-}
-
-async function getChattersTotal(owner) {
-  if (chattersCache.total !== null && chattersCache.expiresAt > Date.now()) {
-    return chattersCache.total;
-  }
-
-  const url = new URL("https://api.twitch.tv/helix/chat/chatters");
-  url.searchParams.set("broadcaster_id", owner.broadcasterId);
-  url.searchParams.set("moderator_id", owner.broadcasterId);
-  url.searchParams.set("first", "1");
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: "Bearer " + owner.accessToken,
-      "Client-Id": TWITCH_CLIENT_ID,
-    },
-    signal: AbortSignal.timeout(10_000),
-
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error("Twitch chatters lookup failed");
-
-  const data = await response.json();
-  const total = Math.max(0, Number(data.total || 0));
-  chattersCache = { total, expiresAt: Date.now() + 10_000 };
-  return total;
+  const stream = Array.isArray(data.data) ? data.data[0] : null;
+  const viewerCount = stream ? Math.max(0, Number(stream.viewer_count) || 0) : null;
+  streamLiveCache = {
+    live: !!stream,
+    viewerCount,
+    expiresAt: Date.now() + 10_000,
+  };
+  return viewerCount;
 }
 
 function sendChatMessage(owner, message, replyTo) {
@@ -593,15 +569,15 @@ async function handleSkipCommand(owner, event, eventId) {
   );
   const role = roleResult.rows[0]?.role || null;
   const isModerator = role === "owner" || role === "moderator";
-  let chattersTotal = null;
+  let viewerCount = null;
   if (!isModerator) {
     try {
-      if (!(await isChannelLive(owner))) {
+      viewerCount = await getLiveViewerCount(owner);
+      if (viewerCount === null) {
         return "Голосование за пропуск доступно только во время эфира.";
       }
-      chattersTotal = await getChattersTotal(owner);
     } catch {
-      return "Не удалось проверить эфир или участников чата. Попробуй ещё раз позже.";
+      return "Не удалось проверить количество зрителей. Попробуй ещё раз позже.";
     }
   }
 
@@ -666,7 +642,7 @@ async function handleSkipCommand(owner, event, eventId) {
       [owner.channelId, requestId],
     );
     const skipVotes = count.rows[0]?.count || 0;
-    const threshold = Math.max(1, Math.ceil((chattersTotal || 1) * percent / 100));
+    const threshold = Math.max(1, Math.ceil((viewerCount ?? 0) * percent / 100));
     let commandQueued = false;
 
     if (skipVotes >= threshold) {
