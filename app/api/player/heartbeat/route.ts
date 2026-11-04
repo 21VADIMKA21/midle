@@ -49,6 +49,15 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      const channelSettings = await client.query(
+        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+      if (!channelSettings.rowCount) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Channel settings are not initialized." }, { status: 409 });
+      }
+
       const queueState = await client.query(
         "SELECT channel_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
         [device.channelId],
