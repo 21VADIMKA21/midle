@@ -24,6 +24,12 @@
 
 Не добавлять Fusion Player одновременно как отдельный источник и в общий Desktop Audio: это может дать двойной звук.
 
+### Чтобы стример тоже слышал музыку
+
+- В OBS открыть **Settings → Audio → Advanced** и выбрать свои наушники как **Monitoring Device**.
+- В **Advanced Audio Properties** для источника CABLE Output установить **Audio Monitoring → Monitor and Output**.
+- Убедиться, что мониторинг OBS не возвращается обратно в захватываемый Desktop Audio, иначе появится эхо или двойной сигнал.
+
 ## 2. Дорожки OBS
 
 Переключить **Settings → Output → Output Mode → Advanced**.
