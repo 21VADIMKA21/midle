@@ -173,6 +173,25 @@ async function getOwnerContext(forceRefresh = false) {
       );
     }
 
+    const validationResponse = await fetch("https://id.twitch.tv/oauth2/validate", {
+      headers: { Authorization: "Bearer " + accessToken },
+      cache: "no-store",
+    });
+    if (!validationResponse.ok) {
+      throw new Error("Twitch broadcaster authorization is invalid; reconnect Twitch in the dashboard");
+    }
+    const validation = await validationResponse.json();
+    if (validation.user_id !== row.twitch_broadcaster_id) {
+      throw new Error("Twitch authorization belongs to a different account; reconnect the channel owner");
+    }
+    if (Array.isArray(validation.scopes)) {
+      scopes = validation.scopes;
+      await client.query(
+        "UPDATE twitch_tokens SET scopes = $2, updated_at = NOW() WHERE user_id = $1",
+        [row.owner_user_id, scopes],
+      );
+    }
+
     const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters"];
     const missingScopes = requiredScopes.filter((scope) => !scopes.includes(scope));
     if (missingScopes.length) {
