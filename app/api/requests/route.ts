@@ -32,11 +32,19 @@ export async function POST(request: NextRequest) {
     client = await getPool().connect();
     await client.query("BEGIN");
 
-    const settings = await client.query<{ requests_enabled: boolean; max_pending_per_user: number }>(
-      "SELECT requests_enabled, max_pending_per_user FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+    const settings = await client.query<{
+      requests_enabled: boolean;
+      max_pending_per_user: number;
+      music_rights_confirmed_at: Date | null;
+    }>(
+      "SELECT requests_enabled, max_pending_per_user, music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
       [session.channelId],
     );
-    if (!settings.rows[0] || !settings.rows[0].requests_enabled) {
+    if (
+      !settings.rows[0] ||
+      !settings.rows[0].requests_enabled ||
+      !settings.rows[0].music_rights_confirmed_at
+    ) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Music requests are currently disabled." }, { status: 403 });
     }
