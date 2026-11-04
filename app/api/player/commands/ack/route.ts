@@ -79,8 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     await client.query("COMMIT");
-    const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-    if (broadcasterId) invalidateQueueCache(broadcasterId);
+    invalidateQueueCache();
 
     return NextResponse.json({
       success: true,
