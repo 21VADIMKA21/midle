@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fusion-music-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fusion_music
+      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_DB: fusion_music
+    ports:
+      - "5432:5432"
+    volumes:
+      - fusion_music_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fusion_music -d fusion_music"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fusion_music_db:
