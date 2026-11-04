@@ -36,6 +36,8 @@ let chattersCache = { total: null, expiresAt: 0 };
 let activeSocket = null;
 let reconnectTimer = null;
 let keepaliveTimer = null;
+let heartbeatTimer = null;
+let currentWorkerStatus = "starting";
 let lastMessageAt = Date.now();
 let keepaliveTimeoutSeconds = 10;
 let stopping = false;
@@ -70,6 +72,24 @@ function encryptToken(value) {
   return [iv, cipher.getAuthTag(), encrypted]
     .map((part) => part.toString("base64url"))
     .join(".");
+}
+
+async function updateWorkerStatus(status, details = {}) {
+  currentWorkerStatus = status;
+  try {
+    await pool.query(
+      `INSERT INTO service_heartbeats (service_name, status, details, last_heartbeat_at, updated_at)
+       VALUES ('twitch-chat', $1, $2::jsonb, NOW(), NOW())
+       ON CONFLICT (service_name) DO UPDATE SET
+         status = EXCLUDED.status,
+         details = EXCLUDED.details,
+         last_heartbeat_at = NOW(),
+         updated_at = NOW()`,
+      [status, JSON.stringify(details)],
+    );
+  } catch (error) {
+    console.error("[fusion-chat] Could not update worker heartbeat:", error.message);
+  }
 }
 
 async function getOwnerContext(forceRefresh = false) {
@@ -625,6 +645,7 @@ function connectEventSub(url, migrated) {
 
   socket.addEventListener("open", () => {
     console.log("[fusion-chat] EventSub WebSocket connected");
+    void updateWorkerStatus("connecting");
   });
 
   socket.addEventListener("message", (messageEvent) => {
@@ -640,13 +661,17 @@ function connectEventSub(url, migrated) {
     const messageType = message.metadata?.message_type;
     if (messageType === "session_welcome") {
       keepaliveTimeoutSeconds = message.payload?.session?.keepalive_timeout_seconds || 10;
-      if (!migrated) {
+      if (migrated) {
+        void updateWorkerStatus("connected");
+      } else {
         const sessionId = message.payload?.session?.id;
         if (sessionId) {
-          void createSubscription(sessionId).catch((error) => {
-            console.error("[fusion-chat] Could not subscribe:", error.message);
-            if (activeSocket === socket) socket.close();
-          });
+          void createSubscription(sessionId)
+            .then(() => updateWorkerStatus("connected"))
+            .catch((error) => {
+              console.error("[fusion-chat] Could not subscribe:", error.message);
+              if (activeSocket === socket) socket.close();
+            });
         }
       }
       return;
@@ -672,6 +697,7 @@ function connectEventSub(url, migrated) {
 
     if (messageType === "revocation") {
       console.error("[fusion-chat] EventSub subscription revoked:", message.payload?.subscription?.status);
+      void updateWorkerStatus("reconnecting");
       if (activeSocket === socket) socket.close();
     }
   });
@@ -680,6 +706,7 @@ function connectEventSub(url, migrated) {
     if (activeSocket === socket) {
       activeSocket = null;
       console.warn("[fusion-chat] EventSub disconnected; reconnecting");
+      void updateWorkerStatus("reconnecting");
       scheduleReconnect();
     }
   });
@@ -702,6 +729,10 @@ async function acquireWorkerLock() {
 
     if (result.rows[0]?.locked) {
       lockClient = candidate;
+      lockClient.on("error", (error) => {
+        console.error("[fusion-chat] Worker lock connection lost:", error.message);
+        if (!stopping) process.exit(1);
+      });
       return;
     }
 
@@ -717,6 +748,8 @@ async function shutdown(signal) {
   console.log("[fusion-chat] Shutting down after", signal);
   if (reconnectTimer) clearTimeout(reconnectTimer);
   if (keepaliveTimer) clearInterval(keepaliveTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await updateWorkerStatus("stopped");
   if (activeSocket) activeSocket.close();
   try {
     if (lockClient) {
@@ -738,6 +771,7 @@ async function waitForOwnerContext() {
       return true;
     } catch (error) {
       console.warn("[fusion-chat] Waiting for broadcaster authorization:", error.message);
+      await updateWorkerStatus("waiting_for_auth");
       await new Promise((resolve) => setTimeout(resolve, 30_000));
     }
   }
@@ -747,8 +781,12 @@ async function waitForOwnerContext() {
 async function start() {
   await acquireWorkerLock();
   console.log("[fusion-chat] Worker started");
+  await updateWorkerStatus("starting");
   if (!(await waitForOwnerContext())) return;
   connectEventSub(EVENTSUB_URL, false);
+  heartbeatTimer = setInterval(() => {
+    void updateWorkerStatus(currentWorkerStatus);
+  }, 15_000);
   keepaliveTimer = setInterval(() => {
     if (
       activeSocket &&
