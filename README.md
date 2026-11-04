@@ -17,7 +17,7 @@
 ## Локальный запуск
 
 ```bash
-npm install
+npm ci
 cp .env.example .env
 ```
 
@@ -28,7 +28,7 @@ cp .env.example .env
 - `TWITCH_BROADCASTER_ID` — числовой Twitch user ID основного канала Fusion;
 - `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` — данные Twitch-приложения;
 - `TWITCH_REDIRECT_URI` — например, `http://localhost:3000/api/auth/callback`;
-- `APP_URL` — базовый адрес сайта;
+- `APP_URL` — необязательный базовый адрес сайта (по умолчанию определяется из запроса);
 - `TOKEN_ENCRYPTION_KEY` — ключ шифрования, сгенерированный командой `openssl rand -base64 32`.
 
 Не публикуйте эти значения и не меняйте ключ шифрования после сохранения Twitch-токенов: без старого ключа их нельзя будет расшифровать.
