@@ -1,6 +1,6 @@
 # Fusion Player — installable browser player specification
 
-> Status: server-side player control plane implemented; Windows desktop client is next  
+> Status: server-side player control plane implemented; installable PWA is next  
 > Target: Chrome/Edge on Windows 10/11, first release  
 > Primary role: local audio playback, local library indexing, Twitch chat connection, OBS routing
 
@@ -55,7 +55,7 @@ Initial command vocabulary:
 
 ## 5. Local music library
 
-The owner selects a folder in the desktop app. The agent scans supported audio files and synchronizes only:
+The owner selects a folder in the player PWA. The player scans supported audio files and synchronizes only:
 - stable file hash (SHA-256);
 - title, artist, album (when present);
 - duration;
@@ -68,11 +68,11 @@ The catalog must not accept arbitrary viewer-uploaded files or arbitrary URLs. T
 
 ## 6. Twitch chat integration
 
-The local agent will maintain a Twitch EventSub WebSocket connection while online. The server remains responsible for OAuth and token refresh.
+The local player will maintain a Twitch EventSub WebSocket connection while online. The server remains responsible for OAuth and token refresh.
 
 - Request only the required broadcaster scopes when the chat integration is implemented (initially `user:read:chat`; add `moderator:read:chatters` only when live-chatter eligibility is enabled).
 - The server can issue a short-lived broadcaster access token to the paired local agent over HTTPS; the agent keeps it in memory and requests a fresh one when reconnecting.
-- The agent subscribes to `channel.chat.message`, parses `!трек` and `!скип`, and forwards normalized commands to the server.
+- The player subscribes to `channel.chat.message`, parses `!трек` and `!скип`, and forwards normalized commands to the server.
 - Twitch roles are verified server-side; chat badges supplied by a client are not trusted as authorization.
 - When the agent is offline, chat commands are unavailable, but the public website and queue remain online.
 
@@ -85,7 +85,7 @@ The chat connection is deliberately part of the local agent in the first release
 - Live stream track includes music.
 - VOD track excludes music.
 - Local recording behavior is configured separately and tested explicitly.
-- The agent exposes a simple audio test tone and meter so the owner can verify routing before going live.
+- The player exposes a simple audio test tone and meter so the owner can verify routing before going live.
 
 Audio track separation is not a substitute for music rights. The exact Windows device and OBS track settings will be validated on the owner's PC before enabling playback.
 
