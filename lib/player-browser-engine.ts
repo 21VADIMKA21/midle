@@ -192,6 +192,10 @@ export async function executePlayerCommand(
         break;
       }
       case "skip": {
+        const targetRequestId = command.payload?.requestId;
+        if (typeof targetRequestId === "string" && context.currentRequestId.current !== targetRequestId) {
+          break;
+        }
         await finishCurrentTrack(token, context);
         break;
       }
