@@ -26,6 +26,32 @@ try {
   );
   const userId = user.rows[0].id;
 
+  await client.query(
+    "INSERT INTO channel_settings (channel_id) VALUES ($1)",
+    [channelId],
+  );
+  const initialRights = await client.query(
+    "SELECT music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1",
+    [channelId],
+  );
+  if (initialRights.rows[0]?.music_rights_confirmed_at !== null) {
+    throw new Error("New channels must start without a music-rights confirmation");
+  }
+  await client.query(
+    `UPDATE channel_settings
+     SET music_rights_confirmed_at = NOW(), music_rights_confirmed_by = $2
+     WHERE channel_id = $1`,
+    [channelId, userId],
+  );
+  const confirmedRights = await client.query(
+    "SELECT music_rights_confirmed_at, music_rights_confirmed_by FROM channel_settings WHERE channel_id = $1",
+    [channelId],
+  );
+  if (!confirmedRights.rows[0]?.music_rights_confirmed_at ||
+      confirmedRights.rows[0]?.music_rights_confirmed_by !== userId) {
+    throw new Error("Music-rights attestation was not stored correctly");
+  }
+
   const track = await client.query(
     "INSERT INTO tracks (provider, provider_track_id, title, artist) VALUES ('ci-smoke', $1, 'Smoke test', 'Fusion') RETURNING id",
     [suffix],
