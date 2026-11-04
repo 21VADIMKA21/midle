@@ -48,11 +48,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "The active track has changed. Refresh the queue." }, { status: 409 });
     }
 
-    await client.query(
+    const voteResult = await client.query(
       `INSERT INTO votes (channel_id, request_id, user_id, vote)
        VALUES ($1, $2, $3, 'skip')
-       ON CONFLICT (channel_id, request_id, user_id)
-       DO UPDATE SET vote = EXCLUDED.vote, created_at = NOW()`,
+       ON CONFLICT (channel_id, request_id, user_id) DO NOTHING`,
       [session.channelId, currentRequestId, session.userId],
     );
 
@@ -68,6 +67,7 @@ export async function POST(request: NextRequest) {
       success: true,
       requestId: currentRequestId,
       skipVotes: Number(countResult.rows[0]?.count || 0),
+      alreadyVoted: voteResult.rowCount === 0,
     });
   } catch {
     if (client && transactionOpen) {
