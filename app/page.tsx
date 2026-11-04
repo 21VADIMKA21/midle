@@ -101,7 +101,7 @@ export default function Home() {
   }
 
   const playerLabel =
-    playerStatus === "playing" ? "PLAYER ONLINE" :
+    playerStatus === "playing" || playerStatus === "online" ? "PLAYER ONLINE" :
     playerStatus === "paused" ? "PLAYER PAUSED" :
     playerStatus === "loading" ? "CONNECTING" :
     "PLAYER OFFLINE";
