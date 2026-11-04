@@ -25,6 +25,7 @@ cp .env.example .env
 
 В `.env` заполните:
 - `DATABASE_URL` — строка подключения к PostgreSQL;
+- `TWITCH_BROADCASTER_ID` — числовой Twitch user ID основного канала Fusion;
 - `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` — данные Twitch-приложения;
 - `TWITCH_REDIRECT_URI` — например, `http://localhost:3000/api/auth/callback`;
 - `APP_URL` — базовый адрес сайта;
@@ -49,6 +50,9 @@ npm run dev
 - PostgreSQL schema для каналов, пользователей, ролей, треков, заявок, очереди, голосов, локальных плееров, аудита, Twitch-токенов и сессий.
 - Twitch OAuth Authorization Code Flow, шифрование токенов AES-256-GCM и непрозрачные серверные сессии.
 - Endpoints входа/выхода и проверки сессии: `/api/auth/twitch`, `/api/auth/callback`, `/api/auth/me`, `/api/auth/logout`.
+- Публичный endpoint чтения очереди `/api/queue` (без фиктивных демо-треков).
+- Владелец канала определяется только по `TWITCH_BROADCASTER_ID`; обычный зритель не может назначить себя владельцем.
+- Постоянные Twitch OAuth-токены сохраняются только для владельца; предусмотрено безопасное обновление refresh token.
 - Безопасный повторный запуск SQL-миграций через `npm run db:migrate`.
 - Серверный пул подключений к PostgreSQL.
 - Health endpoint для мониторинга приложения и БД.
