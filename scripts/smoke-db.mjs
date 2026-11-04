@@ -192,6 +192,13 @@ try {
     throw new Error("Duplicate skip votes were not constrained correctly");
   }
 
+  // Restore the first request to playing so the partial unique index
+  // is tested against a genuinely concurrent active track.
+  await client.query(
+    "UPDATE requests SET status = 'playing' WHERE id = $1",
+    [requestId],
+  );
+
   await client.query("SAVEPOINT unique_playing_test");
   const secondTrack = await client.query(
     "INSERT INTO tracks (provider, provider_track_id, title, artist) VALUES ('ci-smoke', $1, 'Second smoke test', 'Fusion') RETURNING id",
