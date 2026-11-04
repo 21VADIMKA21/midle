@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Sign in with Twitch to vote." }, { status: 401 });
     }
 
-    const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
+    const broadcasterId = session.broadcasterId;
     if (!broadcasterId) {
       return NextResponse.json({ error: "The Twitch channel is not configured." }, { status: 503 });
     }
