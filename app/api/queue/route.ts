@@ -24,26 +24,13 @@ function formatDuration(seconds: number | null): string | null {
 }
 
 export async function GET() {
-  const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-
-  if (!broadcasterId) {
-    return NextResponse.json(
-      { error: "The Fusion broadcaster is not configured.", code: "CHANNEL_NOT_CONFIGURED" },
-      { status: 503 },
-    );
-  }
-
-  const cached = getQueueCache(broadcasterId);
-  if (cached) {
-    return NextResponse.json(cached, {
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    });
-  }
-
   try {
-    const channelResult = await query<{ id: string; display_name: string | null; twitch_login: string | null }>(
-      "SELECT id, display_name, twitch_login FROM channels WHERE twitch_broadcaster_id = $1 LIMIT 1",
-      [broadcasterId],
+    const channelResult = await query<{
+      id: string;
+      display_name: string | null;
+      twitch_login: string | null;
+    }>(
+      "SELECT id, display_name, twitch_login FROM channels ORDER BY created_at ASC LIMIT 1",
     );
     const channel = channelResult.rows[0];
 
@@ -55,8 +42,14 @@ export async function GET() {
         player: { status: "not_connected" },
         revision: 0,
       };
-      setQueueCache(broadcasterId, payload);
       return NextResponse.json(payload, {
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      });
+    }
+
+    const cached = getQueueCache();
+    if (cached) {
+      return NextResponse.json(cached, {
         headers: { "Cache-Control": "no-store, max-age=0" },
       });
     }
@@ -130,7 +123,7 @@ export async function GET() {
       },
       revision: Number(stateResult.rows[0]?.revision || 0),
     };
-    setQueueCache(broadcasterId, payload);
+    setQueueCache(undefined, payload);
     return NextResponse.json(payload, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
