@@ -4,15 +4,18 @@
 
 ## Текущий статус
 
-Интерфейс пока остаётся прототипом. Серверные маршруты Twitch OAuth и публичной очереди уже реализованы, подготовлены PostgreSQL-схема, миграции, зашифрованное хранение токенов и серверные сессии. Но production-БД и Twitch-приложение ещё не подключены через реальные секреты, поэтому вход и очередь пока не работают в развёрнутом сервисе. Музыкальный источник и локальный проигрыватель ещё не подключены.
+Проект уже вышел за рамки статичного прототипа: реализованы серверная очередь, Twitch OAuth с разделением владельца и зрителей, PostgreSQL-хранилище, панель управления, API локального проигрывателя, браузерный Fusion Player и синхронизация локальной музыкальной библиотеки.
 
-Архитектурные решения и ограничения музыкальных источников описаны в [документе архитектуры](docs/architecture/overview.md).
+Production-БД и Twitch-приложение пока не подключены реальными секретами, поэтому публичный развёрнутый сервис ещё не готов к использованию. Полный end-to-end тест с реальным Twitch, локальными файлами и OBS остаётся обязательным перед запуском.
+
+Архитектура, решения по лицензированию и порядок разработки описаны в [документе архитектуры](docs/architecture/overview.md). Спецификация локального проигрывателя — в [local-player.md](docs/architecture/local-player.md).
 
 ## Требования
 
-- Node.js 22 LTS (minimum supported by Next.js 16: 20.9+)
+- Node.js 22 LTS
 - PostgreSQL 14+
 - npm
+- Chrome или Edge на Windows для локального Fusion Player
 
 ## Локальный запуск
 
@@ -21,78 +24,76 @@ npm ci
 cp .env.example .env
 ```
 
-Настройте PostgreSQL, затем создайте приложение в [Twitch Developer Console](https://dev.twitch.tv/console/apps). В Twitch OAuth Redirect URL укажите точно тот адрес, который будет записан в `TWITCH_REDIRECT_URI`.
+Настрой PostgreSQL и создай приложение в [Twitch Developer Console](https://dev.twitch.tv/console/apps). В Twitch OAuth Redirect URL укажи точное значение `TWITCH_REDIRECT_URI`.
 
-В `.env` заполните:
+В `.env` заполни:
 - `DATABASE_URL` — строка подключения к PostgreSQL;
-- `TWITCH_BROADCASTER_ID` — числовой Twitch user ID основного канала Fusion;
 - `TWITCH_CLIENT_ID` и `TWITCH_CLIENT_SECRET` — данные Twitch-приложения;
 - `TWITCH_REDIRECT_URI` — например, `http://localhost:3000/api/auth/callback`;
-- `APP_URL` — необязательный базовый адрес сайта (по умолчанию определяется из запроса);
-- `TOKEN_ENCRYPTION_KEY` — ключ шифрования, сгенерированный командой `openssl rand -base64 32`.
+- `APP_URL` — необязательный базовый адрес сайта;
+- `TOKEN_ENCRYPTION_KEY` — ключ из `openssl rand -base64 32`.
 
-Не публикуйте эти значения и не меняйте ключ шифрования после сохранения Twitch-токенов: без старого ключа их нельзя будет расшифровать.
+`TWITCH_BROADCASTER_ID` вручную задавать не нужно: основной канал определяется при первом подключении владельца через панель.
 
-Затем примените миграции и запустите приложение:
+Затем:
 
 ```bash
 npm run db:migrate
 npm run dev
 ```
 
-Откройте http://localhost:3000.
+Открой http://localhost:3000.
 
-Проверка сервиса и соединения с БД доступна по адресу `/api/health`. При отсутствии настроенной БД endpoint вернёт HTTP 503 и статус `degraded`.
+## Подключение Twitch
 
-## Что уже подготовлено
+1. Первый вход владельца выполняется через `/dashboard` → «Подключить канал через Twitch». Этот OAuth flow создаёт основной канал и сохраняет зашифрованный токен владельца.
+2. Обычные зрители входят через кнопку на главной странице. Их сессии привязываются к уже настроенному каналу; зритель не может создать себе права владельца.
+3. Владелец может повторно выдать Twitch-разрешения из панели управления.
+4. После выдачи разрешений владелец может синхронизировать список модераторов Twitch. Их роли затем используются для принудительного пропуска трека.
 
-- Next.js / React / TypeScript интерфейс.
-- PostgreSQL schema для каналов, пользователей, ролей, треков, заявок, очереди, голосов, локальных плееров, аудита, Twitch-токенов и сессий.
-- Twitch OAuth Authorization Code Flow, шифрование токенов AES-256-GCM и непрозрачные серверные сессии.
-- Endpoints входа/выхода и проверки сессии: `/api/auth/twitch`, `/api/auth/callback`, `/api/auth/me`, `/api/auth/logout`.
-- Публичный endpoint чтения очереди `/api/queue` (без фиктивных демо-треков).
-- Серверная основа локального проигрывателя: pairing, безопасные device-токены, команды с подтверждением, heartbeat и события начала/окончания трека.
-- Панель владельца `/dashboard` для подключения и отключения одного локального проигрывателя.
-- Владелец канала определяется только по `TWITCH_BROADCASTER_ID`; обычный зритель не может назначить себя владельцем.
-- Постоянные Twitch OAuth-токены сохраняются только для владельца; предусмотрено безопасное обновление refresh token.
-- Безопасный повторный запуск SQL-миграций через `npm run db:migrate`.
-- Серверный пул подключений к PostgreSQL.
-- Health endpoint для мониторинга приложения и БД.
-- Шаблон переменных окружения и исключение секретов из Git.
+## Что уже реализовано
+
+- Next.js / React / TypeScript интерфейс и адаптивная панель владельца.
+- PostgreSQL-схема для пользователей, ролей, локального каталога, заявок, очереди, голосов, устройств, команд и аудита.
+- Twitch OAuth Authorization Code Flow, AES-256-GCM шифрование токенов и серверные сессии.
+- Раздельные OAuth flows владельца и зрителей.
+- Публичная очередь: `GET /api/queue`.
+- Поиск по синхронизированному локальному каталогу: `GET /api/catalog`.
+- Создание заявок только из утверждённой локальной библиотеки: `POST /api/requests`.
+- Панель владельца `/dashboard`: подключение/отзыв локального проигрывателя, включение заявок, синхронизация модераторов.
+- Браузерный Fusion Player `/player`: одноразовое подключение устройства, зашифрованное локальное хранение ключа, выбор папки, сканирование MP3/M4A/WAV/OGG/FLAC и синхронизация метаданных без загрузки аудиофайлов.
+- Локальное воспроизведение через браузерный audio engine, durable command polling, heartbeat и события начала/окончания трека.
+- Раздельная маршрутизация звука через выбранный аудиовыход; конфигурация OBS ещё должна быть проверена на реальном ПК.
+- Голосование за пропуск: один голос на Twitch user ID; голосовать могут только пользователи, присутствующие в чате. Порог рассчитывается от числа текущих чаттеров по Twitch Helix.
+- Принудительный пропуск владельцем и синхронизированными модераторами.
+- Повторно запускаемые SQL-миграции, health endpoint `/api/health` и CI-проверка сборки/БД.
 
 ## Что ещё предстоит
 
-1. Подключить Twitch OAuth и серверную сессию.
-2. Реализовать защищённое API заявок и очереди.
-3. Добавить EventSub/чат-бота и права модераторов.
-4. Подтвердить музыкального провайдера и его разрешения для автоматических зрительских заявок.
-5. Завершить Windows-приложение Fusion Player; серверный API и панель подключения уже подготовлены.
-6. Настроить и проверить отдельные аудиодорожки OBS для эфира, VOD и локальной записи.
-7. Развернуть облачную часть и настроить резервное копирование/мониторинг.
+1. Завершить полное тестирование браузерного проигрывателя на Windows и восстановление после перезапуска/потери сети.
+2. Проверить аудиовыход и OBS: музыка в эфире, исключение из VOD и локальной записи.
+3. Добавить Twitch EventSub/chat bot для команд `!трек` и `!скип`.
+4. Подтвердить права на конкретную музыкальную библиотеку и проверить её условия для пользовательских заявок и автоматического воспроизведения.
+5. Развернуть production-инфраструктуру, подключить реальные секреты и выполнить end-to-end тест.
+6. Настроить резервное копирование, мониторинг и инструкции восстановления.
 
 ## Важные ограничения
 
-- Не вставляйте секреты Twitch или пароли БД в клиентский код или Git.
-- Наличие ссылки на YouTube/Spotify или подписки на музыкальный сервис не даёт автоматически права ретранслировать музыку в Twitch.
-- Неофициальные/private API музыкальных платформ не используются.
-- Облачный сайт может быть доступен круглосуточно, но локальное воспроизведение через OBS требует включённого компьютера стримера.
-
+- На сервер отправляются метаданные и хеши локальных аудиофайлов; сами файлы не загружаются.
+- Добавлять можно только музыку, которую владелец вправе транслировать на Twitch. Наличие подписки, ссылки или пометки «copyright-free» само по себе не даёт такого права.
+- YouTube/Spotify audio extraction и неофициальные private API не используются.
+- Облачный сайт и очередь доступны независимо от состояния стрима; локальное воспроизведение работает только пока компьютер и окно Fusion Player запущены.
+- Пока не выполнена реальная проверка OBS/VOD, исключение музыки из записи нельзя считать подтверждённым.
 
 ## Production hosting
 
-A Render Blueprint is included in `render.yaml`. It provisions:
-- an always-on Node.js web service in Frankfurt;
-- a managed PostgreSQL 16 database in the same region;
-- automatic database migrations before deployment;
-- a health check at `/api/health`.
+В `render.yaml` подготовлен Render Blueprint для облачного Node.js-сервиса и PostgreSQL в одном регионе. Он использует always-on hosting, а не бесплатный инстанс, который засыпает.
 
-The Blueprint deliberately uses paid always-on compute rather than free instances that sleep or expire. Current small-instance pricing suggests roughly **$16–20/month before bandwidth/tax and future scaling**; verify the exact total in Render before confirming deployment. The smallest database plan has limited memory, suitable for the initial community queue but not a high-traffic production workload.
+Когда будем готовы к запуску:
+1. Создать Blueprint в Render и подключить этот GitHub-репозиторий.
+2. Проверить созданную базу и переменные окружения.
+3. В Twitch Developer Console добавить точный callback URL развернутого сервиса.
+4. Открыть `/dashboard` и подключить канал через owner OAuth flow.
+5. Проверить `/api/health`, затем выполнить тест с реальным Fusion Player и OBS.
 
-Deployment steps when ready:
-1. In Render, create a new Blueprint and connect this GitHub repository.
-2. Let Render provision the service and database from `render.yaml`.
-3. In the service environment, set `TWITCH_BROADCASTER_ID`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and the exact `TWITCH_REDIRECT_URI` shown by the deployed service.
-4. Add the same callback URL to the Twitch Developer Console application.
-5. Verify `/api/health` reports `status: ok`.
-
-Render generates `TOKEN_ENCRYPTION_KEY` automatically. Do not replace it after Twitch tokens have been stored. The app can derive its base URL from the incoming request, so `APP_URL` is optional in production.
+Render должен автоматически создать `TOKEN_ENCRYPTION_KEY`. Не меняй его после сохранения Twitch-токенов.
