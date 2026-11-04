@@ -24,7 +24,7 @@ export async function GET() {
     const settings = result.rows[0];
     return NextResponse.json({
       configured: !!settings,
-      requestsEnabled: settings?.requests_enabled || false,
+      requestsEnabled: !!settings?.requests_enabled && !!settings?.music_rights_confirmed_at,
       maxPendingPerUser: settings?.max_pending_per_user || 1,
       skipVotePercent: settings?.skip_vote_percent || 50,
       musicRightsConfirmed: !!settings?.music_rights_confirmed_at,
