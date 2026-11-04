@@ -11,7 +11,9 @@ The Blueprint defines:
 - an HTTP health check at `/api/health`;
 - automatic deployment only after GitHub checks pass.
 
-The selected instance sizes are intentionally small for a single Twitch channel. Render resources are paid; review the current Render pricing and the monthly estimate in the Render dashboard before creating them. Do not approve charges until the owner has reviewed them.
+The selected instance sizes are intentionally small for a single Twitch channel. At the currently published rates, the baseline is approximately **$13/month** before bandwidth, storage expansion, taxes, or other usage: about $7 for the web service and $6 for the 256 MB PostgreSQL plan. Prices can change; verify the final estimate in Render before creating resources. Do not approve charges until the owner has reviewed them.
+
+Current pricing: https://render.com/pricing
 
 ## Required Twitch configuration
 
