@@ -156,6 +156,10 @@ export async function getLiveChatters(
     page += 1;
   } while (cursor && page < 100);
 
+  if (userIds.delete(broadcasterId)) {
+    total = Math.max(0, total - 1);
+  }
+
   const result = { ids: userIds, total, expiresAt: Date.now() + 10_000 };
   chattersCache.set(broadcasterId, result);
   return { userIds, total };
