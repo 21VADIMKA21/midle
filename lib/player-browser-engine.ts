@@ -72,7 +72,17 @@ export async function playLocalRequest(
     headers: { Authorization: "Bearer " + token },
     cache: "no-store",
   });
-  if (!response.ok) throw new Error("request_unavailable");
+  if (!response.ok) {
+    if (response.status === 404 && context.currentRequestId.current === requestId) {
+      context.currentRequestId.current = null;
+      context.setCurrentRequestId(null);
+      context.setCurrentTrack(null);
+      context.status.current = "online";
+      context.setStatus("online");
+      await saveCurrentRequestId(null);
+    }
+    throw new Error("request_unavailable");
+  }
 
   const data = await response.json();
   const providerTrackId = data?.track?.providerTrackId;
@@ -88,21 +98,23 @@ export async function playLocalRequest(
     audio.pause();
     if (context.objectUrl.current) URL.revokeObjectURL(context.objectUrl.current);
     context.objectUrl.current = url;
+    context.currentRequestId.current = requestId;
+    context.status.current = "online";
+    context.setCurrentRequestId(requestId);
+    context.setCurrentTrack({
+      title: data.track.title || file.name,
+      artist: data.track.artist || "Unknown artist",
+    });
+    await saveCurrentRequestId(requestId);
+
     audio.src = url;
     audio.volume = context.volume.current;
     audio.currentTime = 0;
     await audio.play();
     await sendTrackEvent(token, "started", requestId);
 
-    context.currentRequestId.current = requestId;
     context.status.current = "playing";
-    context.setCurrentRequestId(requestId);
-    context.setCurrentTrack({
-      title: data.track.title || file.name,
-      artist: data.track.artist || "Unknown artist",
-    });
     context.setStatus("playing");
-    await saveCurrentRequestId(requestId);
     context.setMessage("Сейчас играет: " + (data.track.title || file.name));
   } catch (error) {
     audio.pause();
