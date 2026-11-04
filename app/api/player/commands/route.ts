@@ -21,17 +21,43 @@ export async function GET(request: NextRequest) {
     client = await getPool().connect();
     await client.query("BEGIN");
 
+    await client.query(
+      `UPDATE player_commands pc
+       SET status = 'acknowledged',
+           acknowledged_at = COALESCE(pc.acknowledged_at, NOW()),
+           last_error = 'ack_recovered'
+       WHERE pc.device_id = $1
+         AND pc.command = 'play'
+         AND pc.status = 'delivered'
+         AND pc.attempts >= 5
+         AND pc.delivered_at < NOW() - INTERVAL '10 seconds'
+         AND EXISTS (
+           SELECT 1 FROM player_events pe
+           WHERE pe.request_id = (pc.payload->>'requestId')::uuid
+             AND pe.event_type = 'started'
+         )`,
+      [device.id],
+    );
+
     const expiredCommands = await client.query<{
       command: string;
       payload: { requestId?: string };
     }>(
-      `UPDATE player_commands
+      `UPDATE player_commands pc
        SET status = 'failed', last_error = 'ack_timeout'
-       WHERE device_id = $1
-         AND status = 'delivered'
-         AND attempts >= 5
-         AND delivered_at < NOW() - INTERVAL '10 seconds'
-       RETURNING command, payload`,
+       WHERE pc.device_id = $1
+         AND pc.status = 'delivered'
+         AND pc.attempts >= 5
+         AND pc.delivered_at < NOW() - INTERVAL '10 seconds'
+         AND CASE
+           WHEN pc.command = 'play' THEN NOT EXISTS (
+             SELECT 1 FROM player_events pe
+             WHERE pe.request_id = (pc.payload->>'requestId')::uuid
+               AND pe.event_type = 'started'
+           )
+           ELSE TRUE
+         END
+       RETURNING pc.command, pc.payload`,
       [device.id],
     );
 
@@ -52,8 +78,8 @@ export async function GET(request: NextRequest) {
              WHERE channel_id = $1 AND current_request_id = $2`,
             [device.channelId, expired.payload.requestId],
           );
+          failedPlayCommand = true;
         }
-        failedPlayCommand = true;
       }
     }
 
