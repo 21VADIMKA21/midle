@@ -33,6 +33,7 @@ const pool = new Pool({
 let lockClient;
 let ownerCache = null;
 let chattersCache = { total: null, expiresAt: 0 };
+let streamLiveCache = { live: null, expiresAt: 0 };
 let activeSocket = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
@@ -182,6 +183,28 @@ async function getOwnerContext(forceRefresh = false) {
     cacheUntil: Date.now() + 20_000,
   };
   return ownerCache;
+}
+
+async function isChannelLive(owner) {
+  if (streamLiveCache.live !== null && streamLiveCache.expiresAt > Date.now()) {
+    return streamLiveCache.live;
+  }
+
+  const url = new URL("https://api.twitch.tv/helix/streams");
+  url.searchParams.set("user_id", owner.broadcasterId);
+  const response = await fetch(url, {
+    headers: {
+      Authorization: "Bearer " + owner.accessToken,
+      "Client-Id": TWITCH_CLIENT_ID,
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Twitch live status lookup failed");
+
+  const data = await response.json();
+  const live = Array.isArray(data.data) && data.data.length > 0;
+  streamLiveCache = { live, expiresAt: Date.now() + 10_000 };
+  return live;
 }
 
 async function getChattersTotal(owner) {
@@ -496,7 +519,13 @@ async function handleSkipCommand(owner, event, eventId) {
   );
   const role = roleResult.rows[0]?.role || null;
   const isModerator = role === "owner" || role === "moderator";
-  const chattersTotal = isModerator ? null : await getChattersTotal(owner);
+  let chattersTotal = null;
+  if (!isModerator) {
+    if (!(await isChannelLive(owner))) {
+      return "Голосование за пропуск доступно только во время эфира.";
+    }
+    chattersTotal = await getChattersTotal(owner);
+  }
 
   const client = await pool.connect();
   try {
