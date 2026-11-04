@@ -13,7 +13,8 @@ export type CurrentSession = {
 };
 
 export async function getCurrentSession(): Promise<CurrentSession | null> {
-  const token = cookies().get("fusion_session")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("fusion_session")?.value;
   if (!token) return null;
 
   const result = await getPool().query<{
