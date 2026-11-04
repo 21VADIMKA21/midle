@@ -351,7 +351,7 @@ export default function PlayerPage() {
       fileMapRef.current = localFiles;
       setTrackCount(data.trackCount || 0);
       setLibraryReady(true);
-      setMessage("Библиотека синхронизирована: " + data.trackCount + " треков. Файлы не загружались на сервер.");
+      setMessage("Библиотека синхронизирована: " + data.trackCount + " треков. Файлы не загружались на сервер. Приём заявок закрыт до повторного подтверждения прав в панели.");
 
       if (currentRequestRef.current) {
         try {
