@@ -14,6 +14,17 @@ export async function enqueueNextTrack(
     return null;
   }
 
+  const settings = await client.query<{
+    requests_enabled: boolean;
+    music_rights_confirmed_at: Date | null;
+  }>(
+    "SELECT requests_enabled, music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1",
+    [channelId],
+  );
+  if (!settings.rows[0]?.requests_enabled || !settings.rows[0].music_rights_confirmed_at) {
+    return null;
+  }
+
   const recentPlayCommand = await client.query(
     `SELECT 1 FROM player_commands
      WHERE channel_id = $1
