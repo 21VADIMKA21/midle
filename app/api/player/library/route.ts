@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
     const tracks = [...unique.values()];
     const totalBytes = tracks.reduce((sum, track) => sum + track.fileSize, 0);
 
+    let nextRequestId: string | null = null;
     const client: PoolClient = await getPool().connect();
     try {
       await client.query("BEGIN");
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const nextRequestId = await enqueueNextTrack(client, device.channelId);
+      nextRequestId = await enqueueNextTrack(client, device.channelId);
 
       await client.query(
         `INSERT INTO player_library_syncs (device_id, channel_id, synced_at, track_count, total_bytes)
