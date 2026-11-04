@@ -40,13 +40,20 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const authStatus = new URLSearchParams(window.location.search).get("auth");
       try {
         const response = await fetch("/api/auth/me", { cache: "no-store" });
         const data = await response.json();
         if (cancelled) return;
         if (!data?.authenticated) {
           setAuthenticated(false);
-          setMessage("Войди через Twitch, чтобы управлять Fusion Music.");
+          if (authStatus === "scope-missing") {
+            setMessage("Twitch не выдал необходимые разрешения. Повтори подключение и подтверди доступ к чаттерам и модерации.");
+          } else if (authStatus === "not-owner") {
+            setMessage("Этот Twitch-аккаунт не является владельцем настроенного канала.");
+          } else {
+            setMessage("Войди через Twitch как владелец канала, чтобы настроить Fusion Music.");
+          }
           return;
         }
         setAuthenticated(true);
