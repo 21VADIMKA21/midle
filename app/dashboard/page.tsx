@@ -28,8 +28,12 @@ export default function DashboardPage() {
   const loadDevices = useCallback(async () => {
     const response = await fetch("/api/player/devices", { cache: "no-store" });
     const data = await response.json();
-    if (response.ok) setDevices(data.devices || []);
-    else setMessage(data.error || "Не удалось загрузить список проигрывателей.");
+    if (response.ok) {
+      setDevices(data.devices || []);
+      return true;
+    }
+    setMessage(data.error || "Не удалось загрузить список проигрывателей.");
+    return false;
   }, []);
 
   useEffect(() => {
@@ -50,8 +54,8 @@ export default function DashboardPage() {
           setMessage("Эта панель доступна только владельцу канала.");
           return;
         }
-        await loadDevices();
-        if (!cancelled) setMessage("Панель подключена к серверу.");
+        const loaded = await loadDevices();
+        if (!cancelled && loaded) setMessage("Панель подключена к серверу.");
       } catch {
         if (!cancelled) setMessage("Не удалось связаться с сервером.");
       }
