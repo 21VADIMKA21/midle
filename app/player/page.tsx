@@ -529,7 +529,7 @@ export default function PlayerPage() {
           <div><p className="eyebrow">04 · PLAYBACK</p><h2>Сейчас играет</h2></div>
           <span className={"player-state " + (playerStatus === "playing" ? "is-online" : "")}>{playerStatus === "playing" ? "Воспроизведение" : playerStatus === "paused" ? "Пауза" : playerStatus === "error" ? "Ошибка" : "Ожидание"}</span>
         </div>
-        {currentTrack ? <p className="now-playing-title">{currentTrack.title}</p> : <p className="muted">Пока ничего не воспроизводится.</p>}
+        {currentTrack ? <p className="now-playing-title">{currentTrack.title}</p> : <p className="muted">{currentRequestId ? "Восстанавливаем текущий запрос…" : "Пока ничего не воспроизводится."}</p>}
         {currentTrack ? <p className="muted">{currentTrack.artist}</p> : null}
       </section>
 
