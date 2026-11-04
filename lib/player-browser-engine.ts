@@ -127,8 +127,8 @@ export async function playLocalRequest(
     audio.src = url;
     audio.volume = context.volume.current;
     audio.currentTime = 0;
-    await audio.play();
     await sendTrackEvent(token, "started", requestId);
+    await audio.play();
 
     context.status.current = "playing";
     context.setStatus("playing");
