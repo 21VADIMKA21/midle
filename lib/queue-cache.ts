@@ -6,7 +6,7 @@ type CacheEntry = {
 let queueCache: CacheEntry | null = null;
 const QUEUE_CACHE_TTL_MS = 1_000;
 
-export function getQueueCache(_key?: string): unknown | null {
+export function getQueueCache(): unknown | null {
   if (!queueCache) return null;
   if (queueCache.expiresAt <= Date.now()) {
     queueCache = null;
@@ -15,13 +15,13 @@ export function getQueueCache(_key?: string): unknown | null {
   return queueCache.payload;
 }
 
-export function setQueueCache(_key: string | undefined, payload: unknown): void {
+export function setQueueCache(payload: unknown): void {
   queueCache = {
     payload,
     expiresAt: Date.now() + QUEUE_CACHE_TTL_MS,
   };
 }
 
-export function invalidateQueueCache(_key?: string): void {
+export function invalidateQueueCache(): void {
   queueCache = null;
 }
