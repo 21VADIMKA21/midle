@@ -40,6 +40,19 @@ export async function POST(request: NextRequest) {
     await client.query("BEGIN");
     transactionOpen = true;
 
+    const channelSettings = await client.query<{
+      requests_enabled: boolean;
+      music_rights_confirmed_at: Date | null;
+    }>(
+      "SELECT requests_enabled, music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+      [device.channelId],
+    );
+    if (!channelSettings.rows[0]) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return NextResponse.json({ error: "Channel settings are not initialized." }, { status: 409 });
+    }
+
     const eventInsert = await client.query(
       `INSERT INTO player_events (event_id, device_id, channel_id, request_id, event_type)
        VALUES ($1, $2, $3, $4, $5)
@@ -86,6 +99,16 @@ export async function POST(request: NextRequest) {
     }
 
     const currentRequestId = stateResult.rows[0].current_request_id;
+
+    if (
+      eventType === "started" &&
+      currentRequestId !== body.requestId &&
+      (!channelSettings.rows[0].requests_enabled || !channelSettings.rows[0].music_rights_confirmed_at)
+    ) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return NextResponse.json({ error: "Music requests are closed until the owner confirms the local library rights." }, { status: 409 });
+    }
 
     if (eventType === "started") {
       const requestResult = await client.query<{ status: string }>(
