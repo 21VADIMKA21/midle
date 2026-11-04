@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 concurrency:
   group: fusion-music-build-${{ github.ref }}
   cancel-in-progress: true
@@ -37,7 +40,23 @@ jobs:
         with:
           node-version: 20
       - name: Install dependencies
-        run: npm install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Save npm lockfile
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          npm install --package-lock-only
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: add reproducible npm lockfile"
+            git push
+          fi
       - name: Lint application
         run: npm run lint
       - name: Apply database migrations
