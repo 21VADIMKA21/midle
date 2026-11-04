@@ -30,7 +30,7 @@ databases:
     databaseName: fusion_music
     user: fusion_music
     region: frankfurt
-    plan: 0.5c-1g
+    plan: 0.1c-256mb
     diskSizeGB: 1
     ipAllowList: []
     postgresMajorVersion: "16"
