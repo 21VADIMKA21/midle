@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { query } from "./db";
 import { hashSessionToken } from "./security";
 
