@@ -44,6 +44,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Lint application
         run: npm run lint
+      - name: Test Twitch chat command parser
+        run: npm run test:chat
       - name: Apply database migrations
         run: npm run db:migrate
       - name: Verify migrations are repeatable
