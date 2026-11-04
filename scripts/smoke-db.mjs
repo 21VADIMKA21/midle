@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -42,6 +43,61 @@ try {
     [channelId, requestId],
   );
 
+  const player = await client.query(
+    "INSERT INTO player_devices (channel_id, name, token_hash) VALUES ($1, 'CI player', $2) RETURNING id",
+    [channelId, `token-hash-${suffix}`],
+  );
+  const playerId = player.rows[0].id;
+
+  await client.query(
+    `INSERT INTO player_sessions
+       (channel_id, device_id, client_version, status, current_request_id, last_heartbeat_at)
+     VALUES ($1, $2, 'ci-smoke', 'playing', $3, NOW())`,
+    [channelId, playerId, requestId],
+  );
+
+  const command = await client.query(
+    `INSERT INTO player_commands (device_id, channel_id, command, payload)
+     VALUES ($1, $2, 'skip', '{}'::jsonb) RETURNING id`,
+    [playerId, channelId],
+  );
+  await client.query(
+    "UPDATE player_commands SET status = 'delivered', delivered_at = NOW(), attempts = 1 WHERE id = $1",
+    [command.rows[0].id],
+  );
+  await client.query(
+    `UPDATE player_commands
+     SET status = 'acknowledged', acknowledged_at = NOW()
+     WHERE id = $1 AND device_id = $2 AND status = 'delivered'`,
+    [command.rows[0].id, playerId],
+  );
+  const commandStatus = await client.query(
+    "SELECT status FROM player_commands WHERE id = $1",
+    [command.rows[0].id],
+  );
+  if (commandStatus.rows[0]?.status !== "acknowledged") {
+    throw new Error("Player command delivery/acknowledgement failed");
+  }
+
+  const eventId = randomUUID();
+  await client.query(
+    `INSERT INTO player_events (event_id, device_id, channel_id, request_id, event_type)
+     VALUES ($1, $2, $3, $4, 'started') ON CONFLICT DO NOTHING`,
+    [eventId, playerId, channelId, requestId],
+  );
+  await client.query(
+    `INSERT INTO player_events (event_id, device_id, channel_id, request_id, event_type)
+     VALUES ($1, $2, $3, $4, 'started') ON CONFLICT DO NOTHING`,
+    [eventId, playerId, channelId, requestId],
+  );
+  const eventCount = await client.query(
+    "SELECT COUNT(*)::int AS count FROM player_events WHERE event_id = $1",
+    [eventId],
+  );
+  if (eventCount.rows[0].count !== 1) {
+    throw new Error("Duplicate player events were not constrained correctly");
+  }
+
   await client.query(
     "INSERT INTO votes (channel_id, request_id, user_id, vote) VALUES ($1, $2, $3, 'skip') ON CONFLICT DO NOTHING",
     [channelId, requestId, userId],
@@ -82,7 +138,7 @@ try {
 
   await client.query("ROLLBACK TO SAVEPOINT unique_playing_test");
   await client.query("ROLLBACK");
-  console.log("Database smoke checks passed: queue integrity and unique skip votes.");
+  console.log("Database smoke checks passed: queue integrity, unique skip votes, player command acknowledgements and idempotent player events.");
 } catch (error) {
   try { await client.query("ROLLBACK"); } catch { /* connection already failed */ }
   console.error("Database smoke checks failed:", error);
