@@ -77,6 +77,8 @@ export async function GET(request: NextRequest) {
         grant_type: "authorization_code",
         redirect_uri: redirectUri,
       }),
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
 
@@ -100,6 +102,8 @@ export async function GET(request: NextRequest) {
 
     const validateResponse = await fetch("https://id.twitch.tv/oauth2/validate", {
       headers: { Authorization: "Bearer " + tokenData.access_token },
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
     if (!validateResponse.ok) return redirectWithStatus(request, "failed", flow);
@@ -109,6 +113,8 @@ export async function GET(request: NextRequest) {
         Authorization: "Bearer " + tokenData.access_token,
         "Client-Id": clientId,
       },
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
     if (!usersResponse.ok) return redirectWithStatus(request, "failed", flow);
