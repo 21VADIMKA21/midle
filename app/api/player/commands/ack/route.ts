@@ -66,8 +66,14 @@ export async function POST(request: NextRequest) {
       await client.query(
         `UPDATE requests
          SET status = 'failed', rejection_reason = $3, updated_at = NOW()
-         WHERE id = $1 AND channel_id = $2 AND status = 'queued'`,
+         WHERE id = $1 AND channel_id = $2 AND status IN ('queued', 'playing')`,
         [command.rows[0].payload.requestId, device.channelId, errorCode || "player_error"],
+      );
+      await client.query(
+        `UPDATE queue_state
+         SET current_request_id = NULL, revision = revision + 1, updated_at = NOW()
+         WHERE channel_id = $1 AND current_request_id = $2`,
+        [device.channelId, command.rows[0].payload.requestId],
       );
       nextRequestId = await enqueueNextTrack(client, device.channelId);
     }
