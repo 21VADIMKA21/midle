@@ -49,6 +49,24 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      const queueState = await client.query(
+        "SELECT channel_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+      if (!queueState.rowCount) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Queue state is not initialized." }, { status: 409 });
+      }
+
+      const deviceLock = await client.query(
+        "SELECT id FROM player_devices WHERE id = $1 AND channel_id = $2 AND revoked_at IS NULL FOR UPDATE",
+        [device.id, device.channelId],
+      );
+      if (!deviceLock.rowCount) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Player device has been revoked." }, { status: 401 });
+      }
+
       if (currentRequestId) {
         const requestResult = await client.query(
           `SELECT 1 FROM requests
