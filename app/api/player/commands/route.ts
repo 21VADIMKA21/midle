@@ -61,6 +61,16 @@ export async function GET(request: NextRequest) {
       [device.id],
     );
 
+    const hasExpiredPlayCommand = expiredCommands.rows.some(
+      (expired) => expired.command === "play" && !!expired.payload?.requestId,
+    );
+    if (hasExpiredPlayCommand) {
+      await client.query(
+        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+    }
+
     let failedPlayCommand = false;
     for (const expired of expiredCommands.rows) {
       if (expired.command === "play" && expired.payload?.requestId) {
@@ -101,6 +111,15 @@ export async function GET(request: NextRequest) {
          WHERE pc.device_id = $1
            AND pd.revoked_at IS NULL
            AND pc.attempts < 5
+           AND (
+             pc.command <> 'play'
+             OR EXISTS (
+               SELECT 1 FROM channel_settings cs
+               WHERE cs.channel_id = pc.channel_id
+                 AND cs.requests_enabled = TRUE
+                 AND cs.music_rights_confirmed_at IS NOT NULL
+             )
+           )
            AND (
              pc.status = 'pending'
              OR (pc.status = 'delivered' AND pc.delivered_at < NOW() - INTERVAL '10 seconds')
