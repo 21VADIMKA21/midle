@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "../../../../lib/db";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
+import { enqueueNextTrack } from "../../../../lib/player-queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,6 +147,15 @@ export async function POST(request: NextRequest) {
         [device.channelId],
       );
 
+      if (failedRequests.rowCount) {
+        await client.query(
+          "UPDATE queue_state SET revision = revision + 1, updated_at = NOW() WHERE channel_id = $1",
+          [device.channelId],
+        );
+      }
+
+      const nextRequestId = await enqueueNextTrack(client, device.channelId);
+
       await client.query(
         `INSERT INTO player_library_syncs (device_id, channel_id, synced_at, track_count, total_bytes)
          VALUES ($1, $2, NOW(), $3, $4)
@@ -159,7 +169,7 @@ export async function POST(request: NextRequest) {
       await client.query(
         `INSERT INTO audit_log (channel_id, action, details)
          VALUES ($1, 'player.library.synced', $2::jsonb)`,
-        [device.channelId, JSON.stringify({ trackCount: tracks.length, totalBytes, failedRequests: failedRequests.rowCount || 0 })],
+        [device.channelId, JSON.stringify({ trackCount: tracks.length, totalBytes, failedRequests: failedRequests.rowCount || 0, nextRequestId })],
       );
 
       await client.query("COMMIT");
@@ -178,6 +188,7 @@ export async function POST(request: NextRequest) {
       trackCount: tracks.length,
       totalBytes,
       syncedAt: new Date().toISOString(),
+      nextRequestId,
     });
   } catch {
     return NextResponse.json({ error: "Local library sync is temporarily unavailable." }, { status: 503 });
