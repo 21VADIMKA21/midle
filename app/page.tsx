@@ -13,7 +13,7 @@ type Track = {
   skipVotes?: number;
 };
 
-type Viewer = { displayName: string | null; login: string | null };
+type Viewer = { displayName: string | null; login: string | null; role: "owner" | "moderator" | "vip" | null };
 type QueueResponse = {
   channel: { displayName: string | null; login: string | null } | null;
   currentTrack: Track | null;
@@ -112,6 +112,7 @@ export default function Home() {
         <Link className="brand" href="/"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></Link>
         <div className="top-right">
           <span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span>
+          {viewer?.role === "owner" ? <Link className="twitch-login" href="/dashboard">Панель ↗</Link> : null}
           {viewer
             ? <button className="twitch-login" type="button" onClick={logout}>Выйти ({viewer.displayName || viewer.login || "Twitch"})</button>
             : <a className="twitch-login" href="/api/auth/twitch">Войти через Twitch ↗</a>}
