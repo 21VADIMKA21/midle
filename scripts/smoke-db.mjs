@@ -52,6 +52,17 @@ try {
     throw new Error("Music-rights attestation was not stored correctly");
   }
 
+  await client.query(
+    `INSERT INTO service_heartbeats (service_name, status, details)
+     VALUES ('ci-smoke', 'connected', '{"source":"smoke-test"}'::jsonb)`,
+  );
+  const heartbeat = await client.query(
+    "SELECT status, details->>'source' AS source FROM service_heartbeats WHERE service_name = 'ci-smoke'",
+  );
+  if (heartbeat.rows[0]?.status !== "connected" || heartbeat.rows[0]?.source !== "smoke-test") {
+    throw new Error("Service heartbeat status was not stored correctly");
+  }
+
   const track = await client.query(
     "INSERT INTO tracks (provider, provider_track_id, title, artist) VALUES ('ci-smoke', $1, 'Smoke test', 'Fusion') RETURNING id",
     [suffix],
@@ -281,7 +292,7 @@ try {
 
   await client.query("ROLLBACK TO SAVEPOINT unique_playing_test");
   await client.query("ROLLBACK");
-  console.log("Database smoke checks passed: queue integrity, unique skip votes, local library sync metadata, player command acknowledgements and idempotent player events.");
+  console.log("Database smoke checks passed: queue integrity, music rights attestation, worker heartbeat, idempotent chat/player events, local library metadata and player command acknowledgements.");
 } catch (error) {
   try { await client.query("ROLLBACK"); } catch { /* connection already failed */ }
   console.error("Database smoke checks failed:", error);
