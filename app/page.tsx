@@ -107,11 +107,6 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    if (requestsEnabled) void loadCatalog("");
-    else setCatalogResults([]);
-  }, [requestsEnabled, loadCatalog]);
-
   async function searchCatalog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await loadCatalog(catalogQuery.trim());
