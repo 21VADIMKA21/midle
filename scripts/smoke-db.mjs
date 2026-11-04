@@ -74,6 +74,53 @@ try {
     throw new Error("Local music library metadata was not stored correctly");
   }
 
+  const localTrackRow = await client.query(
+    "SELECT id FROM tracks WHERE provider = 'local_library' AND provider_track_id = $1",
+    [localHash],
+  );
+  const queuedLocalRequest = await client.query(
+    "INSERT INTO requests (channel_id, track_id, requester_id, status) VALUES ($1, $2, $3, 'queued') RETURNING id",
+    [channelId, localTrackRow.rows[0].id, userId],
+  );
+  await client.query(
+    "UPDATE queue_state SET current_request_id = NULL WHERE channel_id = $1",
+    [channelId],
+  );
+  await client.query(
+    "UPDATE player_sessions SET status = 'online', current_request_id = NULL, last_heartbeat_at = NOW() WHERE device_id = $1",
+    [playerId],
+  );
+
+  const playerReady = await client.query(
+    `SELECT pd.id
+     FROM player_devices pd
+     JOIN player_sessions ps ON ps.device_id = pd.id
+     WHERE pd.channel_id = $1
+       AND pd.revoked_at IS NULL
+       AND ps.last_heartbeat_at > NOW() - INTERVAL '45 seconds'
+       AND ps.status IN ('online', 'playing', 'paused')
+     LIMIT 1`,
+    [channelId],
+  );
+  const nextLocalTrack = await client.query(
+    `SELECT r.id
+     FROM requests r
+     JOIN tracks t ON t.id = r.track_id
+     WHERE r.channel_id = $1 AND r.status = 'queued'
+       AND t.provider = 'local_library' AND t.is_available = TRUE
+     ORDER BY COALESCE(r.position, 2147483647), r.created_at
+     LIMIT 1`,
+    [channelId],
+  );
+  if (!playerReady.rowCount || nextLocalTrack.rows[0]?.id !== queuedLocalRequest.rows[0].id) {
+    throw new Error("The local queue did not select the next playable track");
+  }
+  await client.query(
+    `INSERT INTO player_commands (device_id, channel_id, command, payload)
+     VALUES ($1, $2, 'play', $3::jsonb)`,
+    [playerId, channelId, JSON.stringify({ requestId: nextLocalTrack.rows[0].id })],
+  );
+
   await client.query(
     `INSERT INTO player_sessions
        (channel_id, device_id, client_version, status, current_request_id, last_heartbeat_at)
