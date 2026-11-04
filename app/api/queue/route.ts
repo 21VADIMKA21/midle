@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { query } from "../../../lib/db";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ function formatDuration(seconds: number | null): string | null {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
 
   if (!broadcasterId) {
