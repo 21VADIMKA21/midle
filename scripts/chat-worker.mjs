@@ -35,6 +35,7 @@ let ownerCache = null;
 let chattersCache = { total: null, expiresAt: 0 };
 let activeSocket = null;
 let reconnectTimer = null;
+let reconnectAttempts = 0;
 let keepaliveTimer = null;
 let heartbeatTimer = null;
 let currentWorkerStatus = "starting";
@@ -643,10 +644,12 @@ async function createSubscription(sessionId) {
 
 function scheduleReconnect() {
   if (stopping || reconnectTimer) return;
+  const delayMs = Math.min(30_000, 5_000 * (2 ** reconnectAttempts));
+  reconnectAttempts = Math.min(reconnectAttempts + 1, 3);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connectEventSub(EVENTSUB_URL, false);
-  }, 5_000);
+  }, delayMs);
 }
 
 function connectEventSub(url, migrated) {
@@ -657,6 +660,7 @@ function connectEventSub(url, migrated) {
   lastMessageAt = Date.now();
 
   socket.addEventListener("open", () => {
+    reconnectAttempts = 0;
     console.log("[fusion-chat] EventSub WebSocket connected");
     void updateWorkerStatus("connecting");
   });
