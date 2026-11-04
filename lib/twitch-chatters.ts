@@ -31,7 +31,7 @@ type CachedChatters = {
 
 const chattersCache = new Map<string, CachedChatters>();
 
-async function getBroadcasterToken(broadcasterId: string): Promise<{
+export async function getBroadcasterToken(broadcasterId: string): Promise<{
   accessToken: string;
   broadcasterUserId: string;
   scopes: string[];
