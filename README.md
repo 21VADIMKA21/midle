@@ -74,3 +74,23 @@ npm run dev
 - Наличие ссылки на YouTube/Spotify или подписки на музыкальный сервис не даёт автоматически права ретранслировать музыку в Twitch.
 - Неофициальные/private API музыкальных платформ не используются.
 - Облачный сайт может быть доступен круглосуточно, но локальное воспроизведение через OBS требует включённого компьютера стримера.
+
+
+## Production hosting
+
+A Render Blueprint is included in `render.yaml`. It provisions:
+- an always-on Node.js web service in Frankfurt;
+- a managed PostgreSQL 16 database in the same region;
+- automatic database migrations before deployment;
+- a health check at `/api/health`.
+
+The Blueprint deliberately uses paid always-on compute rather than free instances that sleep or expire. Current small-instance pricing suggests roughly **$16–20/month before bandwidth/tax and future scaling**; verify the exact total in Render before confirming deployment. The smallest database plan has limited memory, suitable for the initial community queue but not a high-traffic production workload.
+
+Deployment steps when ready:
+1. In Render, create a new Blueprint and connect this GitHub repository.
+2. Let Render provision the service and database from `render.yaml`.
+3. In the service environment, set `TWITCH_BROADCASTER_ID`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and the exact `TWITCH_REDIRECT_URI` shown by the deployed service.
+4. Add the same callback URL to the Twitch Developer Console application.
+5. Verify `/api/health` reports `status: ok`.
+
+Render generates `TOKEN_ENCRYPTION_KEY` automatically. Do not replace it after Twitch tokens have been stored. The app can derive its base URL from the incoming request, so `APP_URL` is optional in production.
