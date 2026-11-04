@@ -40,6 +40,10 @@ export default function Home() {
     let cancelled = false;
 
     async function load() {
+      const authStatus = new URLSearchParams(window.location.search).get("auth");
+      if (authStatus === "setup-required") {
+        setNotice("Канал ещё не настроен. Владелец должен сначала подключить Twitch через панель управления.");
+      }
       try {
         const [queueResponse, authResponse, settingsResponse] = await Promise.all([
           fetch("/api/queue", { cache: "no-store" }),
