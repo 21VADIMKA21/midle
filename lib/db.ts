@@ -2,7 +2,6 @@ import { Pool, type QueryResult, type QueryResultRow } from "pg";
 
 declare global {
   // Reuse one pool across Next.js hot reloads in development.
-  // eslint-disable-next-line no-var
   var fusionMusicPool: Pool | undefined;
 }
 
