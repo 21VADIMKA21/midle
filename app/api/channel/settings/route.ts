@@ -11,8 +11,10 @@ export async function GET() {
       requests_enabled: boolean;
       max_pending_per_user: number;
       skip_vote_percent: number;
+      music_rights_confirmed_at: Date | null;
     }>(
-      `SELECT cs.requests_enabled, cs.max_pending_per_user, cs.skip_vote_percent
+      `SELECT cs.requests_enabled, cs.max_pending_per_user, cs.skip_vote_percent,
+              cs.music_rights_confirmed_at
        FROM channel_settings cs
        JOIN channels c ON c.id = cs.channel_id
        ORDER BY c.created_at ASC
@@ -25,6 +27,7 @@ export async function GET() {
       requestsEnabled: settings?.requests_enabled || false,
       maxPendingPerUser: settings?.max_pending_per_user || 1,
       skipVotePercent: settings?.skip_vote_percent || 50,
+      musicRightsConfirmed: !!settings?.music_rights_confirmed_at,
     }, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
     requestsEnabled?: unknown;
     maxPendingPerUser?: unknown;
     skipVotePercent?: unknown;
+    confirmMusicRights?: unknown;
   } | null;
 
   if (
@@ -56,7 +60,8 @@ export async function POST(request: NextRequest) {
     (body.maxPendingPerUser !== undefined &&
       (typeof body.maxPendingPerUser !== "number" || !Number.isInteger(body.maxPendingPerUser) || body.maxPendingPerUser < 1 || body.maxPendingPerUser > 5)) ||
     (body.skipVotePercent !== undefined &&
-      (typeof body.skipVotePercent !== "number" || !Number.isInteger(body.skipVotePercent) || body.skipVotePercent < 10 || body.skipVotePercent > 100))
+      (typeof body.skipVotePercent !== "number" || !Number.isInteger(body.skipVotePercent) || body.skipVotePercent < 10 || body.skipVotePercent > 100)) ||
+    (body.confirmMusicRights !== undefined && typeof body.confirmMusicRights !== "boolean")
   ) {
     return NextResponse.json({ error: "Invalid channel settings." }, { status: 400 });
   }
@@ -66,7 +71,29 @@ export async function POST(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
+    if (body.confirmMusicRights === true) {
+      await client.query(
+        `UPDATE channel_settings
+         SET music_rights_confirmed_at = COALESCE(music_rights_confirmed_at, NOW()),
+             music_rights_confirmed_by = COALESCE(music_rights_confirmed_by, $2),
+             updated_at = NOW()
+         WHERE channel_id = $1`,
+        [session.channelId, session.userId],
+      );
+    }
+
     if (body.requestsEnabled === true) {
+      const rights = await client.query<{ music_rights_confirmed_at: Date | null }>(
+        "SELECT music_rights_confirmed_at FROM channel_settings WHERE channel_id = $1",
+        [session.channelId],
+      );
+      if (!rights.rows[0]?.music_rights_confirmed_at) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({
+          error: "Before opening requests, confirm that you have permission to broadcast every track in the local library on Twitch.",
+          code: "MUSIC_RIGHTS_CONFIRMATION_REQUIRED",
+        }, { status: 409 });
+      }
       const library = await client.query(
         "SELECT 1 FROM tracks WHERE provider = 'local_library' AND is_available = TRUE LIMIT 1",
       );
@@ -93,6 +120,7 @@ export async function POST(request: NextRequest) {
       requests_enabled: boolean;
       max_pending_per_user: number;
       skip_vote_percent: number;
+      music_rights_confirmed_at: Date | null;
     }>(
       `UPDATE channel_settings
        SET requests_enabled = COALESCE($2, requests_enabled),
@@ -100,7 +128,7 @@ export async function POST(request: NextRequest) {
            skip_vote_percent = COALESCE($4, skip_vote_percent),
            updated_at = NOW()
        WHERE channel_id = $1
-       RETURNING requests_enabled, max_pending_per_user, skip_vote_percent`,
+       RETURNING requests_enabled, max_pending_per_user, skip_vote_percent, music_rights_confirmed_at`,
       [
         session.channelId,
         body.requestsEnabled ?? null,
@@ -126,6 +154,7 @@ export async function POST(request: NextRequest) {
       requestsEnabled: result.rows[0].requests_enabled,
       maxPendingPerUser: result.rows[0].max_pending_per_user,
       skipVotePercent: result.rows[0].skip_vote_percent,
+      musicRightsConfirmed: !!result.rows[0].music_rights_confirmed_at,
     });
   } catch {
     try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
