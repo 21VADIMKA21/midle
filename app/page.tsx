@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 type Track = {
@@ -14,6 +14,7 @@ type Track = {
 };
 
 type Viewer = { displayName: string | null; login: string | null; role: "owner" | "moderator" | "vip" | null };
+type CatalogTrack = { id: string; title: string; artist: string; durationSeconds: number | null; album: string | null };
 type QueueResponse = {
   channel: { displayName: string | null; login: string | null } | null;
   currentTrack: Track | null;
@@ -29,15 +30,21 @@ export default function Home() {
   const [channelName, setChannelName] = useState("Fusion");
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [notice, setNotice] = useState("Подключаемся к серверу…");
+  const [requestsEnabled, setRequestsEnabled] = useState(false);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogResults, setCatalogResults] = useState<CatalogTrack[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [requestingTrackId, setRequestingTrackId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [queueResponse, authResponse] = await Promise.all([
+        const [queueResponse, authResponse, settingsResponse] = await Promise.all([
           fetch("/api/queue", { cache: "no-store" }),
           fetch("/api/auth/me", { cache: "no-store" }),
+          fetch("/api/channel/settings", { cache: "no-store" }),
         ]);
 
         if (queueResponse.ok) {
@@ -58,6 +65,11 @@ export default function Home() {
           const auth = await authResponse.json();
           if (!cancelled && auth?.authenticated) setViewer(auth.user);
         }
+
+        if (settingsResponse.ok) {
+          const settings = await settingsResponse.json();
+          if (!cancelled) setRequestsEnabled(settings.requestsEnabled === true);
+        }
       } catch {
         if (!cancelled) {
           setPlayerStatus("unavailable");
@@ -73,6 +85,72 @@ export default function Home() {
       window.clearInterval(interval);
     };
   }, []);
+
+  const loadCatalog = useCallback(async (search: string) => {
+    setCatalogLoading(true);
+    try {
+      const response = await fetch("/api/catalog?q=" + encodeURIComponent(search), { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) {
+        setNotice(data.error || "Не удалось загрузить музыкальный каталог.");
+        return;
+      }
+      setCatalogResults(data.tracks || []);
+    } catch {
+      setNotice("Не удалось загрузить музыкальный каталог.");
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (requestsEnabled) void loadCatalog("");
+    else setCatalogResults([]);
+  }, [requestsEnabled, loadCatalog]);
+
+  async function searchCatalog(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await loadCatalog(catalogQuery.trim());
+  }
+
+  async function requestTrack(trackId: string) {
+    if (!viewer) {
+      setNotice("Войди через Twitch, чтобы добавлять треки в очередь.");
+      return;
+    }
+    if (!requestsEnabled) {
+      setNotice("Приём заявок сейчас закрыт.");
+      return;
+    }
+
+    setRequestingTrackId(trackId);
+    try {
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setNotice(data.error || "Не удалось добавить трек.");
+        return;
+      }
+      setNotice(data.playerCommandQueued
+        ? "Трек добавлен — проигрыватель получил команду запуска."
+        : "Трек добавлен в очередь.");
+      const queueResponse = await fetch("/api/queue", { cache: "no-store" });
+      if (queueResponse.ok) {
+        const queueData = await queueResponse.json() as QueueResponse;
+        setQueue(queueData.queue || []);
+        setCurrentTrack(queueData.currentTrack || null);
+        setPlayerStatus(queueData.player?.status || "offline");
+      }
+    } catch {
+      setNotice("Не удалось добавить трек. Проверь соединение.");
+    } finally {
+      setRequestingTrackId(null);
+    }
+  }
 
   async function logout() {
     try {
@@ -162,13 +240,27 @@ export default function Home() {
         <aside className="side-column">
           <div className="request-card">
             <p className="eyebrow">YOUR TURN</p><h2>Добавить<br/>трек</h2>
-            <p className="side-copy">Приём заявок откроется после подключения музыкального каталога с подтверждёнными правами на трансляцию.</p>
-            <form onSubmit={(event) => event.preventDefault()}>
-              <label htmlFor="track-url">ЗАЯВКИ</label>
-              <input id="track-url" value="Скоро будет доступно" readOnly aria-label="Приём заявок пока недоступен"/>
-              <button type="button" disabled>Приём заявок закрыт</button>
+            <p className="side-copy">{requestsEnabled ? "Найди композицию в каталоге, который владелец канала добавил для трансляции." : "Приём заявок пока закрыт. Он откроется после подключения локальной музыкальной библиотеки с правами на трансляцию."}</p>
+            <form onSubmit={searchCatalog}>
+              <label htmlFor="catalog-search">ПОИСК ПО НАЗВАНИЮ ИЛИ ИСПОЛНИТЕЛЮ</label>
+              <input id="catalog-search" value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Например, Artist — Track"/>
+              <button type="submit" disabled={catalogLoading}>{catalogLoading ? "Ищем…" : "Найти трек"}</button>
             </form>
-            <p className="fine-print">Мы не принимаем ссылки на сервисы, которые не разрешают публичное воспроизведение музыки в эфире.</p>
+            {catalogResults.length ? (
+              <div className="catalog-results">
+                {catalogResults.map((track) => (
+                  <div className="catalog-result" key={track.id}>
+                    <div><strong>{track.title}</strong><span>{track.artist}</span></div>
+                    <button type="button" onClick={() => void requestTrack(track.id)} disabled={!viewer || !requestsEnabled || requestingTrackId === track.id}>
+                      {requestingTrackId === track.id ? "…" : "В очередь"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="fine-print">{requestsEnabled ? "Поищи трек по названию или исполнителю." : "Музыка не принимается по произвольным ссылкам. Используется только утверждённый каталог."}</p>
+            )}
+            {!viewer ? <a className="request-login" href="/api/auth/twitch">Войти через Twitch, чтобы отправлять заявки ↗</a> : null}
           </div>
           <div className="rules-card">
             <p className="eyebrow">КАК ЭТО БУДЕТ РАБОТАТЬ</p>
