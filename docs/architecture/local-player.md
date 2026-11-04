@@ -1,6 +1,6 @@
 # Fusion Player Agent — desktop client specification
 
-> Status: design approved for implementation after server API foundation  
+> Status: server-side player control plane implemented; Windows desktop client is next  
 > Target: Windows 10/11, first release  
 > Primary role: local audio playback, local library indexing, Twitch chat connection, OBS routing
 
@@ -100,11 +100,15 @@ Audio track separation is not a substitute for music rights. The exact Windows d
 
 ## 9. Implementation order
 
-1. Database schema for devices, commands and sessions.
-2. Pairing endpoint and secure device-token validation.
-3. Command polling, acknowledgement and heartbeat endpoints.
-4. Electron shell with pairing and connection status.
-5. Local folder scanner and catalog sync.
-6. Local audio playback and output-device selection.
-7. Twitch EventSub chat integration.
-8. OBS routing test and Windows installer.
+- [x] Database schema for devices, commands, sessions and idempotent track events.
+- [x] Owner-only pairing endpoint; raw device token is shown once and only its hash is stored.
+- [x] Bearer-token validation, durable command polling/retry, acknowledgement and heartbeat endpoints.
+- [x] Idempotent track lifecycle events (`started`, `finished`, `failed`) that update the server queue.
+- [x] Owner dashboard for pairing and revoking the single active player device.
+- [ ] Electron shell with pairing and connection status.
+- [ ] Local folder scanner and catalog sync.
+- [ ] Local audio playback and output-device selection.
+- [ ] Twitch EventSub chat integration.
+- [ ] OBS routing test and Windows installer.
+
+The server currently supports one active player device per channel. This avoids two computers attempting to play the same queue simultaneously; multi-device failover can be added later with an explicit active-device selection mechanism.
