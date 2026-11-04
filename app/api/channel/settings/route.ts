@@ -6,11 +6,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-  if (!broadcasterId) {
-    return NextResponse.json({ requestsEnabled: false, configured: false });
-  }
-
   try {
     const result = await query<{
       requests_enabled: boolean;
@@ -20,9 +15,8 @@ export async function GET() {
       `SELECT cs.requests_enabled, cs.max_pending_per_user, cs.skip_vote_percent
        FROM channel_settings cs
        JOIN channels c ON c.id = cs.channel_id
-       WHERE c.twitch_broadcaster_id = $1
+       ORDER BY c.created_at ASC
        LIMIT 1`,
-      [broadcasterId],
     );
 
     const settings = result.rows[0];
