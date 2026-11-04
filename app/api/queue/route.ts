@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query } from "../../../lib/db";
+import { getQueueCache, setQueueCache } from "../../../lib/queue-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,13 @@ export async function GET() {
     );
   }
 
+  const cached = getQueueCache(broadcasterId);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: { "Cache-Control": "no-store, max-age=0" },
+    });
+  }
+
   try {
     const channelResult = await query<{ id: string; display_name: string | null; twitch_login: string | null }>(
       "SELECT id, display_name, twitch_login FROM channels WHERE twitch_broadcaster_id = $1 LIMIT 1",
@@ -40,12 +48,16 @@ export async function GET() {
     const channel = channelResult.rows[0];
 
     if (!channel) {
-      return NextResponse.json({
+      const payload = {
         channel: null,
         currentTrack: null,
         queue: [],
         player: { status: "not_connected" },
         revision: 0,
+      };
+      setQueueCache(broadcasterId, payload);
+      return NextResponse.json(payload, {
+        headers: { "Cache-Control": "no-store, max-age=0" },
       });
     }
 
@@ -89,7 +101,7 @@ export async function GET() {
     const playerFresh = !!player?.last_heartbeat_at &&
       Date.now() - new Date(player.last_heartbeat_at).getTime() < 45_000;
 
-    return NextResponse.json({
+    const payload = {
       channel: {
         displayName: channel.display_name || channel.twitch_login,
         login: channel.twitch_login,
@@ -117,7 +129,9 @@ export async function GET() {
         lastSeenAt: player?.last_heartbeat_at || null,
       },
       revision: Number(stateResult.rows[0]?.revision || 0),
-    }, {
+    };
+    setQueueCache(broadcasterId, payload);
+    return NextResponse.json(payload, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch {
