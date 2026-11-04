@@ -56,6 +56,7 @@ async function scanDirectory(
     if (!SUPPORTED_FORMATS.has(extension)) continue;
 
     const file = await fileHandle.getFile();
+    if (file.size > 200_000_000) continue;
     const name = parseFileName(file.name);
     result.push({
       hash: await hashFile(file),
@@ -106,6 +107,14 @@ export default function PlayerPage() {
         if (savedToken) {
           setDeviceToken(savedToken);
           setMessage("Сохранённый ключ найден. Проверяем подключение…");
+          const libraryResponse = await fetch("/api/player/library", {
+            headers: { Authorization: "Bearer " + savedToken },
+            cache: "no-store",
+          });
+          if (libraryResponse.ok) {
+            const libraryData = await libraryResponse.json();
+            setTrackCount(libraryData.trackCount || 0);
+          }
         } else {
           setMessage("Подключи Fusion Player одноразовым ключом из панели владельца.");
         }
@@ -165,6 +174,14 @@ export default function PlayerPage() {
         return;
       }
       await savePlayerToken(token);
+      const libraryResponse = await fetch("/api/player/library", {
+        headers: { Authorization: "Bearer " + token },
+        cache: "no-store",
+      });
+      if (libraryResponse.ok) {
+        const libraryData = await libraryResponse.json();
+        setTrackCount(libraryData.trackCount || 0);
+      }
       setDeviceToken(token);
       setConnected(true);
       setTokenInput("");
@@ -313,7 +330,7 @@ export default function PlayerPage() {
           <button className="dashboard-action" type="button" onClick={chooseLibrary} disabled={busy}>Выбрать папку</button>
           <button className="dashboard-action" type="button" onClick={syncLibrary} disabled={busy || !connected || !directory}>Сканировать и синхронизировать</button>
         </div>
-        <p className="fine-print">На сервер отправляются только названия, длительность (если доступна), формат и хеш файла. Сами аудиофайлы и пути к ним остаются на компьютере. Добавляй только музыку, которую разрешено транслировать на Twitch.</p>
+        <p className="fine-print">На сервер отправляются только названия, формат, размер и хеш файла. Сами аудиофайлы и пути к ним остаются на компьютере. Добавляй только музыку, которую разрешено транслировать на Twitch.</p>
       </section>
 
       <section className="dashboard-card">
