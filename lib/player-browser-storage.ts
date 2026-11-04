@@ -97,8 +97,10 @@ export async function loadPlayerToken(): Promise<string | null> {
   if (!stored) return null;
 
   const key = await getEncryptionKey();
+  const ivBuffer = new ArrayBuffer(stored.iv.byteLength);
+  new Uint8Array(ivBuffer).set(stored.iv);
   const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: stored.iv },
+    { name: "AES-GCM", iv: ivBuffer },
     key,
     stored.ciphertext,
   );
