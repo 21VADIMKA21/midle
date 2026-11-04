@@ -22,6 +22,8 @@ export default function DashboardPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [devices, setDevices] = useState<PlayerDevice[]>([]);
   const [requestsEnabled, setRequestsEnabled] = useState(false);
+  const [musicRightsConfirmed, setMusicRightsConfirmed] = useState(false);
+  const [rightsAcknowledged, setRightsAcknowledged] = useState(false);
   const [pairToken, setPairToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Загружаем панель…");
@@ -62,7 +64,17 @@ export default function DashboardPage() {
           setMessage("Эта панель доступна только владельцу канала.");
           return;
         }
-        const loaded = await loadDevices();
+        const [loaded] = await Promise.all([
+          loadDevices(),
+          fetch("/api/channel/settings", { cache: "no-store" })
+            .then((settingsResponse) => settingsResponse.ok ? settingsResponse.json() : null)
+            .then((settings) => {
+              if (!cancelled && settings) {
+                setRequestsEnabled(settings.requestsEnabled === true);
+                setMusicRightsConfirmed(settings.musicRightsConfirmed === true);
+              }
+            }),
+        ]);
         if (!cancelled && loaded) setMessage("Панель подключена к серверу.");
       } catch {
         if (!cancelled) setMessage("Не удалось связаться с сервером.");
@@ -129,7 +141,10 @@ export default function DashboardPage() {
       const response = await fetch("/api/channel/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestsEnabled: !requestsEnabled }),
+        body: JSON.stringify({
+          requestsEnabled: !requestsEnabled,
+          confirmMusicRights: !requestsEnabled && !musicRightsConfirmed && rightsAcknowledged,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -137,6 +152,8 @@ export default function DashboardPage() {
         return;
       }
       setRequestsEnabled(data.requestsEnabled === true);
+      setMusicRightsConfirmed(data.musicRightsConfirmed === true);
+      if (data.musicRightsConfirmed) setRightsAcknowledged(false);
       setMessage(data.requestsEnabled ? "Приём заявок открыт." : "Приём заявок закрыт.");
     } catch {
       setMessage("Не удалось изменить приём заявок.");
@@ -225,8 +242,21 @@ export default function DashboardPage() {
             <div><p className="eyebrow">REQUEST SETTINGS</p><h2>Приём заявок</h2></div>
             <span className={"player-state " + (requestsEnabled ? "is-online" : "")}>{requestsEnabled ? "Открыт" : "Закрыт"}</span>
           </div>
-          <p className="muted">Заявки можно открыть только после подключения проигрывателя и синхронизации локальной библиотеки с музыкой, разрешённой для трансляции.</p>
-          <button className="dashboard-action" type="button" onClick={toggleRequests} disabled={busy || (!requestsEnabled && devices.length === 0)}>
+          <p className="muted">Заявки можно открыть только после подключения проигрывателя, синхронизации локальной библиотеки и подтверждения прав на трансляцию.</p>
+          {!musicRightsConfirmed ? (
+            <label className="rights-confirmation">
+              <input
+                type="checkbox"
+                checked={rightsAcknowledged}
+                onChange={(event) => setRightsAcknowledged(event.target.checked)}
+                disabled={busy}
+              />
+              <span>Подтверждаю, что у меня есть права или разрешение на трансляцию всех треков этой библиотеки в прямом эфире Twitch.</span>
+            </label>
+          ) : (
+            <p className="rights-confirmed">Права на текущую библиотеку подтверждены. При изменении библиотеки подтверждение потребуется повторно.</p>
+          )}
+          <button className="dashboard-action" type="button" onClick={toggleRequests} disabled={busy || (!requestsEnabled && (devices.length === 0 || (!musicRightsConfirmed && !rightsAcknowledged)))}>
             {requestsEnabled ? "Закрыть приём заявок" : "Открыть приём заявок"}
           </button>
         </section>
