@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getCurrentSession } from "../../../../lib/session";
 import { getPool } from "../../../../lib/db";
+import { getLiveViewerCount } from "../../../../lib/twitch-viewers";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
 
 export const runtime = "nodejs";
@@ -20,6 +21,21 @@ export async function POST(request: NextRequest) {
     const session = await getCurrentSession();
     if (!session?.userId || !session.channelId) {
       return NextResponse.json({ error: "Sign in with Twitch to vote." }, { status: 401 });
+    }
+
+    const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
+    if (!broadcasterId) {
+      return NextResponse.json({ error: "The Twitch channel is not configured." }, { status: 503 });
+    }
+
+    let viewerCount: number | null;
+    try {
+      viewerCount = await getLiveViewerCount(broadcasterId);
+    } catch {
+      return NextResponse.json({ error: "Could not verify the live audience. Try again shortly." }, { status: 503 });
+    }
+    if (viewerCount === null) {
+      return NextResponse.json({ error: "Skip voting is available while the Twitch channel is live." }, { status: 409 });
     }
 
     client = await getPool().connect();
@@ -49,6 +65,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "The active track has changed. Refresh the queue." }, { status: 409 });
     }
 
+    const settings = await client.query<{ skip_vote_percent: number }>(
+      "SELECT skip_vote_percent FROM channel_settings WHERE channel_id = $1",
+      [session.channelId],
+    );
+    const skipVotePercent = settings.rows[0]?.skip_vote_percent || 50;
+
     const voteResult = await client.query(
       `INSERT INTO votes (channel_id, request_id, user_id, vote)
        VALUES ($1, $2, $3, 'skip')
@@ -60,16 +82,51 @@ export async function POST(request: NextRequest) {
       "SELECT COUNT(*)::text AS count FROM votes WHERE channel_id = $1 AND request_id = $2 AND vote = 'skip'",
       [session.channelId, currentRequestId],
     );
+    const skipVotes = Number(countResult.rows[0]?.count || 0);
+    const skipThreshold = Math.max(1, Math.ceil(viewerCount * skipVotePercent / 100));
+    let skipCommandQueued = false;
+
+    if (skipVotes >= skipThreshold) {
+      const device = await client.query<{ id: string }>(
+        "SELECT id FROM player_devices WHERE channel_id = $1 AND revoked_at IS NULL LIMIT 1 FOR UPDATE",
+        [session.channelId],
+      );
+
+      if (device.rows[0]) {
+        const existingCommand = await client.query(
+          `SELECT 1 FROM player_commands
+           WHERE device_id = $1
+             AND command = 'skip'
+             AND payload->>'requestId' = $2
+             AND status IN ('pending', 'delivered', 'acknowledged')
+           LIMIT 1`,
+          [device.rows[0].id, currentRequestId],
+        );
+
+        if (!existingCommand.rowCount) {
+          await client.query(
+            `INSERT INTO player_commands (device_id, channel_id, created_by, command, payload)
+             VALUES ($1, $2, $3, 'skip', $4::jsonb)`,
+            [device.rows[0].id, session.channelId, session.userId, JSON.stringify({ requestId: currentRequestId })],
+          );
+        }
+        skipCommandQueued = true;
+      }
+    }
 
     await client.query("COMMIT");
     transactionOpen = false;
-    const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
     if (broadcasterId) invalidateQueueCache(broadcasterId);
 
     return NextResponse.json({
       success: true,
       requestId: currentRequestId,
-      skipVotes: Number(countResult.rows[0]?.count || 0),
+      skipVotes,
+      skipThreshold,
+      viewerCount,
+      skipVotePercent,
+      thresholdReached: skipVotes >= skipThreshold,
+      skipCommandQueued,
       alreadyVoted: voteResult.rowCount === 0,
     });
   } catch {
