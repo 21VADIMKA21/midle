@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 type Viewer = {
@@ -25,12 +25,12 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Загружаем панель…");
 
-  async function loadDevices() {
+  const loadDevices = useCallback(async () => {
     const response = await fetch("/api/player/devices", { cache: "no-store" });
     const data = await response.json();
     if (response.ok) setDevices(data.devices || []);
     else setMessage(data.error || "Не удалось загрузить список проигрывателей.");
-  }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,7 +58,7 @@ export default function DashboardPage() {
     }
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [loadDevices]);
 
   async function pairPlayer() {
     setBusy(true);
