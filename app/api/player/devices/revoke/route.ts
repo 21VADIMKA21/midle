@@ -31,6 +31,11 @@ export async function POST(request: NextRequest) {
     client = await getPool().connect();
     await client.query("BEGIN");
 
+    await client.query(
+      "SELECT channel_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
+      [session.channelId],
+    );
+
     const revoked = await client.query(
       `UPDATE player_devices
        SET revoked_at = NOW()
