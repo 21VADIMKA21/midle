@@ -234,7 +234,13 @@ export async function executePlayerCommand(
   } catch (error) {
     success = false;
     errorCode = error instanceof Error ? error.message.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) : "player_command_failed";
-    context.setMessage("Ошибка команды проигрывателя: " + errorCode);
+    const friendlyErrors: Record<string, string> = {
+      local_file_missing: "Файл трека не найден. Синхронизируй локальную библиотеку заново.",
+      local_file_changed_sync_library: "Файл изменился после синхронизации. Обнови библиотеку и подтверди права ещё раз.",
+      local_file_too_large: "Файл слишком большой для локального проигрывателя.",
+      invalid_local_track_hash: "У трека повреждён идентификатор. Синхронизируй библиотеку заново.",
+    };
+    context.setMessage(friendlyErrors[errorCode] || "Ошибка команды проигрывателя: " + errorCode);
   }
 
   try {
