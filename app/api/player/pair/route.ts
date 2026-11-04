@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { getCurrentSession } from "../../../../lib/session";
 import { getPool } from "../../../../lib/db";
 import { hashSessionToken } from "../../../../lib/security";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
-  let client: Awaited<ReturnType<ReturnType<typeof getPool>["connect"]>> | null = null;
+  let client: PoolClient | null = null;
 
   try {
     const session = await getCurrentSession();
@@ -29,6 +30,8 @@ export async function POST(request: NextRequest) {
 
     client = await getPool().connect();
     await client.query("BEGIN");
+
+    await client.query("SELECT id FROM channels WHERE id = $1 FOR UPDATE", [session.channelId]);
 
     const countResult = await client.query<{ count: string }>(
       "SELECT COUNT(*)::text AS count FROM player_devices WHERE channel_id = $1 AND revoked_at IS NULL",
