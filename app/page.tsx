@@ -93,7 +93,7 @@ export default function Home() {
       setCurrentTrack((track) => track
         ? { ...track, skipVotes: result.skipVotes }
         : track);
-      setNotice(`Голос за пропуск учтён. Всего голосов: ${result.skipVotes}.`);
+      setNotice(result.alreadyVoted ? `Твой голос уже учтён. Всего голосов: ${result.skipVotes}.` : `Голос за пропуск учтён. Всего голосов: ${result.skipVotes}.`);
     } catch {
       setNotice("Не удалось отправить голос. Проверь соединение.");
     }
