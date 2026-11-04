@@ -32,7 +32,7 @@
 
 ## 2. Дорожки OBS
 
-Переключить **Settings → Output → Output Mode → Advanced**.
+В **Settings → Stream** выбрать Twitch и подключить аккаунт. Затем переключить **Settings → Output → Output Mode → Advanced**.
 
 ### Streaming
 
