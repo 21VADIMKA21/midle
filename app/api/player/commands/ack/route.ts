@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
     client = await getPool().connect();
     await client.query("BEGIN");
 
+    await client.query(
+      "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+      [device.channelId],
+    );
+
     const command = await client.query<{
       command: string;
       payload: { requestId?: string };
@@ -50,13 +55,6 @@ export async function POST(request: NextRequest) {
     if (!command.rows[0]) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Command not found or no longer awaiting acknowledgement." }, { status: 404 });
-    }
-
-    if (!success && command.rows[0].command === "play") {
-      await client.query(
-        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
-        [device.channelId],
-      );
     }
 
     await client.query(
