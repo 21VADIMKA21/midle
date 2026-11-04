@@ -44,6 +44,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Active player device not found." }, { status: 404 });
     }
 
+    const activeSession = await client.query<{ current_request_id: string | null }>(
+      "SELECT current_request_id FROM player_sessions WHERE device_id = $1 FOR UPDATE",
+      [body.deviceId],
+    );
+    const currentRequestId = activeSession.rows[0]?.current_request_id || null;
+
+    if (currentRequestId) {
+      await client.query(
+        `UPDATE requests
+         SET status = 'queued', position = 0, updated_at = NOW()
+         WHERE id = $1 AND channel_id = $2 AND status = 'playing'`,
+        [currentRequestId, session.channelId],
+      );
+      await client.query(
+        `UPDATE queue_state
+         SET current_request_id = NULL, revision = revision + 1, updated_at = NOW()
+         WHERE channel_id = $1 AND current_request_id = $2`,
+        [session.channelId, currentRequestId],
+      );
+    }
+
     await client.query(
       "UPDATE player_sessions SET status = 'offline', current_request_id = NULL WHERE device_id = $1",
       [body.deviceId],
