@@ -521,10 +521,14 @@ async function handleSkipCommand(owner, event, eventId) {
   const isModerator = role === "owner" || role === "moderator";
   let chattersTotal = null;
   if (!isModerator) {
-    if (!(await isChannelLive(owner))) {
-      return "Голосование за пропуск доступно только во время эфира.";
+    try {
+      if (!(await isChannelLive(owner))) {
+        return "Голосование за пропуск доступно только во время эфира.";
+      }
+      chattersTotal = await getChattersTotal(owner);
+    } catch {
+      return "Не удалось проверить эфир или участников чата. Попробуй ещё раз позже.";
     }
-    chattersTotal = await getChattersTotal(owner);
   }
 
   const client = await pool.connect();
