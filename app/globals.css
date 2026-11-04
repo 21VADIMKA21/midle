@@ -15,3 +15,6 @@
 
 
 .rights-confirmation{display:flex;align-items:flex-start;gap:10px;margin:18px 0;padding:14px;border:1px solid rgba(199,255,94,.25);border-radius:8px;color:var(--muted);font-size:13px;line-height:1.55;cursor:pointer}.rights-confirmation input{flex:0 0 auto;margin-top:3px;accent-color:var(--accent)}.rights-confirmed{margin:18px 0;padding:12px 14px;border-left:2px solid var(--accent);background:rgba(199,255,94,.05);color:var(--muted);font-size:12px;line-height:1.5}
+
+
+.chat-worker-card{display:flex;align-items:center;justify-content:space-between;gap:20px}.chat-worker-indicator{max-width:48%;padding:9px 12px;border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--muted);font-size:12px;line-height:1.4;text-align:right}.chat-worker-indicator.is-connected{border-color:rgba(199,255,94,.35);color:var(--accent)}@media(max-width:640px){.chat-worker-card{align-items:flex-start;flex-direction:column}.chat-worker-indicator{max-width:100%;text-align:left}}
