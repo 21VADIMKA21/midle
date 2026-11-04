@@ -663,16 +663,21 @@ function connectEventSub(url, migrated) {
 }
 
 async function acquireWorkerLock() {
-  lockClient = await pool.connect();
-  const result = await lockClient.query(
-    "SELECT pg_try_advisory_lock($1) AS locked",
-    [WORKER_LOCK_ID],
-  );
-  if (!result.rows[0]?.locked) {
-    lockClient.release();
-    lockClient = null;
-    console.log("[fusion-chat] Another instance owns the worker lock; exiting");
-    process.exit(0);
+  while (!stopping) {
+    const candidate = await pool.connect();
+    const result = await candidate.query(
+      "SELECT pg_try_advisory_lock($1) AS locked",
+      [WORKER_LOCK_ID],
+    );
+
+    if (result.rows[0]?.locked) {
+      lockClient = candidate;
+      return;
+    }
+
+    candidate.release();
+    console.log("[fusion-chat] Another instance owns the worker lock; waiting for it to become available");
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
 }
 
