@@ -660,7 +660,6 @@ function connectEventSub(url, migrated) {
   lastMessageAt = Date.now();
 
   socket.addEventListener("open", () => {
-    reconnectAttempts = 0;
     console.log("[fusion-chat] EventSub WebSocket connected");
     void updateWorkerStatus("connecting");
   });
@@ -679,12 +678,16 @@ function connectEventSub(url, migrated) {
     if (messageType === "session_welcome") {
       keepaliveTimeoutSeconds = message.payload?.session?.keepalive_timeout_seconds || 10;
       if (migrated) {
+        reconnectAttempts = 0;
         void updateWorkerStatus("connected");
       } else {
         const sessionId = message.payload?.session?.id;
         if (sessionId) {
           void createSubscription(sessionId)
-            .then(() => updateWorkerStatus("connected"))
+            .then(() => {
+              reconnectAttempts = 0;
+              return updateWorkerStatus("connected");
+            })
             .catch((error) => {
               console.error("[fusion-chat] Could not subscribe:", error.message);
               if (activeSocket === socket) socket.close();
