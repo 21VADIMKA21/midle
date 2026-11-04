@@ -10,7 +10,7 @@
 
 ## Требования
 
-- Node.js 20.9+
+- Node.js 22 LTS (minimum supported by Next.js 16: 20.9+)
 - PostgreSQL 14+
 - npm
 
