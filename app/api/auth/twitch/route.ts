@@ -30,6 +30,13 @@ export async function GET() {
     path: "/api/auth",
     maxAge: 10 * 60,
   });
+  response.cookies.set("fusion_oauth_flow", "viewer", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth",
+    maxAge: 10 * 60,
+  });
 
   return response;
 }
