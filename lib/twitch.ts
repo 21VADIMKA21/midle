@@ -62,6 +62,8 @@ export async function getBroadcasterAccessToken(): Promise<string> {
         grant_type: "refresh_token",
         refresh_token: refreshToken,
       }),
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
 
