@@ -116,3 +116,15 @@ export async function saveLibraryDirectory(handle: FusionDirectoryHandle): Promi
 export async function loadLibraryDirectory(): Promise<FusionDirectoryHandle | null> {
   return readValue<FusionDirectoryHandle>(HANDLES_STORE, "library-directory");
 }
+
+export async function saveCurrentRequestId(requestId: string | null): Promise<void> {
+  if (requestId) {
+    await writeValue(SECRETS_STORE, "current-request-id", requestId);
+  } else {
+    await deleteValue(SECRETS_STORE, "current-request-id");
+  }
+}
+
+export async function loadCurrentRequestId(): Promise<string | null> {
+  return readValue<string>(SECRETS_STORE, "current-request-id");
+}
