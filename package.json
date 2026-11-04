@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start.mjs",
     "lint": "eslint .",
     "db:migrate": "node scripts/migrate.mjs",
     "db:smoke": "node scripts/smoke-db.mjs",
-    "test:chat": "node --test scripts/chat-command.test.mjs"
+    "test:chat": "node --test scripts/chat-command.test.mjs",
+    "chat:worker": "node scripts/chat-worker.mjs"
   },
   "dependencies": {
     "next": "16.4.5",
