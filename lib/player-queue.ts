@@ -18,8 +18,18 @@ export async function enqueueNextTrack(
     `SELECT 1 FROM player_commands
      WHERE channel_id = $1
        AND command = 'play'
-       AND status IN ('pending', 'delivered', 'acknowledged')
        AND created_at > NOW() - INTERVAL '30 seconds'
+       AND (
+         status IN ('pending', 'delivered')
+         OR (
+           status = 'acknowledged'
+           AND NOT EXISTS (
+             SELECT 1 FROM player_events pe
+             WHERE pe.request_id = (player_commands.payload->>'requestId')::uuid
+               AND pe.event_type = 'started'
+           )
+         )
+       )
      LIMIT 1`,
     [channelId],
   );
