@@ -148,6 +148,10 @@ export default function DashboardPage() {
       });
       const data = await response.json();
       if (!response.ok) {
+        if (data.code === "MUSIC_RIGHTS_CONFIRMATION_REQUIRED") {
+          setMusicRightsConfirmed(false);
+          setRightsAcknowledged(false);
+        }
         setMessage(data.error || "Не удалось изменить приём заявок.");
         return;
       }
