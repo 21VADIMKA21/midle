@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getCurrentSession } from "../../../../lib/session";
 import { getPool } from "../../../../lib/db";
 import { getLiveViewerCount } from "../../../../lib/twitch-viewers";
+import { getLiveChatters } from "../../../../lib/twitch-chatters";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
 
 export const runtime = "nodejs";
@@ -36,6 +37,19 @@ export async function POST(request: NextRequest) {
     }
     if (viewerCount === null) {
       return NextResponse.json({ error: "Skip voting is available while the Twitch channel is live." }, { status: 409 });
+    }
+
+    let chatters: { userIds: Set<string>; total: number };
+    try {
+      chatters = await getLiveChatters(broadcasterId);
+    } catch {
+      return NextResponse.json({
+        error: "Twitch chat eligibility could not be verified. The channel owner may need to reconnect Twitch with chatters permission.",
+      }, { status: 503 });
+    }
+
+    if (!chatters.userIds.has(session.twitchUserId)) {
+      return NextResponse.json({ error: "Only users currently present in the channel chat can vote." }, { status: 403 });
     }
 
     client = await getPool().connect();
@@ -83,7 +97,7 @@ export async function POST(request: NextRequest) {
       [session.channelId, currentRequestId],
     );
     const skipVotes = Number(countResult.rows[0]?.count || 0);
-    const skipThreshold = Math.max(1, Math.ceil(viewerCount * skipVotePercent / 100));
+    const skipThreshold = Math.max(1, Math.ceil(chatters.total * skipVotePercent / 100));
     let skipCommandQueued = false;
 
     if (skipVotes >= skipThreshold) {
@@ -124,6 +138,7 @@ export async function POST(request: NextRequest) {
       skipVotes,
       skipThreshold,
       viewerCount,
+      eligibleChatters: chatters.total,
       skipVotePercent,
       thresholdReached: skipVotes >= skipThreshold,
       skipCommandQueued,
