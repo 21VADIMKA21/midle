@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 type Track = {
@@ -108,7 +108,7 @@ export default function Home() {
     else setCatalogResults([]);
   }, [requestsEnabled, loadCatalog]);
 
-  async function searchCatalog(event: React.FormEvent<HTMLFormElement>) {
+  async function searchCatalog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await loadCatalog(catalogQuery.trim());
   }
