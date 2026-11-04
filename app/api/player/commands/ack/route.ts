@@ -52,6 +52,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Command not found or no longer awaiting acknowledgement." }, { status: 404 });
     }
 
+    if (!success && command.rows[0].command === "play") {
+      await client.query(
+        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+    }
+
     await client.query(
       `UPDATE player_commands
        SET status = $3,
