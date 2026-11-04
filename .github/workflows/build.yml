@@ -38,5 +38,7 @@ jobs:
         run: npm run db:migrate
       - name: Verify migrations are repeatable
         run: npm run db:migrate
+      - name: Test database queue integrity
+        run: npm run db:smoke
       - name: Build application
         run: npm run build
