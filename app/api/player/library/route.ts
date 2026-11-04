@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       unique.set(track.hash, track);
     }
 
-    const tracks = [...unique.values()];
+    const tracks = Array.from(unique.values());
     const totalBytes = tracks.reduce((sum, track) => sum + track.fileSize, 0);
 
     let nextRequestId: string | null = null;
