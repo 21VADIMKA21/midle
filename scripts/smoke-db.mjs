@@ -199,6 +199,20 @@ try {
     [requestId],
   );
 
+  const activePlaying = await client.query(
+    "SELECT COUNT(*)::int AS count FROM requests WHERE channel_id = $1 AND status = 'playing'",
+    [channelId],
+  );
+  const uniqueIndex = await client.query(
+    "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'requests_one_playing_per_channel_idx'",
+  );
+  if (activePlaying.rows[0].count !== 1 || !uniqueIndex.rows[0]?.indexdef?.startsWith("CREATE UNIQUE INDEX")) {
+    throw new Error("Partial unique playing-track index is missing or smoke fixture is inconsistent: " + JSON.stringify({
+      activePlaying: activePlaying.rows[0].count,
+      index: uniqueIndex.rows[0]?.indexdef || null,
+    }));
+  }
+
   await client.query("SAVEPOINT unique_playing_test");
   const secondTrack = await client.query(
     "INSERT INTO tracks (provider, provider_track_id, title, artist) VALUES ('ci-smoke', $1, 'Second smoke test', 'Fusion') RETURNING id",
