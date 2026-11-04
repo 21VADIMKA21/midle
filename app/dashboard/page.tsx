@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [devices, setDevices] = useState<PlayerDevice[]>([]);
+  const [requestsEnabled, setRequestsEnabled] = useState(false);
   const [pairToken, setPairToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Загружаем панель…");
@@ -98,6 +99,28 @@ export default function DashboardPage() {
     }
   }
 
+  async function toggleRequests() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/channel/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestsEnabled: !requestsEnabled }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || "Не удалось изменить приём заявок.");
+        return;
+      }
+      setRequestsEnabled(data.requestsEnabled === true);
+      setMessage(data.requestsEnabled ? "Приём заявок открыт." : "Приём заявок закрыт.");
+    } catch {
+      setMessage("Не удалось изменить приём заявок.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function revokeDevice(deviceId: string) {
     setBusy(true);
     try {
@@ -169,6 +192,17 @@ export default function DashboardPage() {
               <p className="fine-print">Ключ отображается только один раз. Не отправляй его другим людям и не публикуй в чате.</p>
             </div>
           ) : null}
+        </section>
+
+        <section className="dashboard-card">
+          <div className="dashboard-section-head">
+            <div><p className="eyebrow">REQUEST SETTINGS</p><h2>Приём заявок</h2></div>
+            <span className={"player-state " + (requestsEnabled ? "is-online" : "")}>{requestsEnabled ? "Открыт" : "Закрыт"}</span>
+          </div>
+          <p className="muted">Заявки можно открыть только после подключения проигрывателя и синхронизации локальной библиотеки с музыкой, разрешённой для трансляции.</p>
+          <button className="dashboard-action" type="button" onClick={toggleRequests} disabled={busy || (!requestsEnabled && devices.length === 0)}>
+            {requestsEnabled ? "Закрыть приём заявок" : "Открыть приём заявок"}
+          </button>
         </section>
       )}
 
