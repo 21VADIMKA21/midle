@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getPool } from "../../../../lib/db";
 import { getCurrentSession } from "../../../../lib/session";
+import { enqueueNextTrack } from "../../../../lib/player-queue";
+import { invalidateQueueCache } from "../../../../lib/queue-cache";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 
 export const runtime = "nodejs";
@@ -19,15 +21,36 @@ export async function GET(request: NextRequest) {
     client = await getPool().connect();
     await client.query("BEGIN");
 
-    await client.query(
+    const expiredCommands = await client.query<{
+      command: string;
+      payload: { requestId?: string };
+    }>(
       `UPDATE player_commands
        SET status = 'failed', last_error = 'ack_timeout'
        WHERE device_id = $1
          AND status = 'delivered'
          AND attempts >= 5
-         AND delivered_at < NOW() - INTERVAL '10 seconds'`,
+         AND delivered_at < NOW() - INTERVAL '10 seconds'
+       RETURNING command, payload`,
       [device.id],
     );
+
+    let failedPlayCommand = false;
+    for (const expired of expiredCommands.rows) {
+      if (expired.command === "play" && expired.payload?.requestId) {
+        await client.query(
+          `UPDATE requests
+           SET status = 'failed', rejection_reason = 'player_ack_timeout', updated_at = NOW()
+           WHERE id = $1 AND channel_id = $2 AND status = 'queued'`,
+          [expired.payload.requestId, device.channelId],
+        );
+        failedPlayCommand = true;
+      }
+    }
+
+    if (failedPlayCommand) {
+      await enqueueNextTrack(client, device.channelId);
+    }
 
     const commands = await client.query<{
       id: string;
@@ -62,6 +85,11 @@ export async function GET(request: NextRequest) {
     );
 
     await client.query("COMMIT");
+
+    if (expiredCommands.rowCount) {
+      const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
+      if (broadcasterId) invalidateQueueCache(broadcasterId);
+    }
 
     return NextResponse.json({
       device: { id: device.id, name: device.name },
