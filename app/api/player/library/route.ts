@@ -195,6 +195,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Close requests and clear the attestation before considering the next queued item.
+      await client.query(
+        `UPDATE channel_settings
+         SET requests_enabled = FALSE,
+             music_rights_confirmed_at = NULL,
+             music_rights_confirmed_by = NULL,
+             updated_at = NOW()
+         WHERE channel_id = $1`,
+        [device.channelId],
+      );
+
       nextRequestId = await enqueueNextTrack(client, device.channelId);
 
       await client.query(
@@ -205,17 +216,6 @@ export async function POST(request: NextRequest) {
            track_count = EXCLUDED.track_count,
            total_bytes = EXCLUDED.total_bytes`,
         [device.id, device.channelId, tracks.length, totalBytes],
-      );
-
-      // A changed library must be reviewed again before requests can reopen.
-      await client.query(
-        `UPDATE channel_settings
-         SET requests_enabled = FALSE,
-             music_rights_confirmed_at = NULL,
-             music_rights_confirmed_by = NULL,
-             updated_at = NOW()
-         WHERE channel_id = $1`,
-        [device.channelId],
       );
 
       await client.query(
