@@ -12,6 +12,7 @@ import {
   loadCurrentRequestId,
   loadLibraryDirectory,
   loadPlayerToken,
+  saveCurrentRequestId,
   saveLibraryDirectory,
   savePlayerToken,
 } from "../../lib/player-browser-storage";
@@ -171,6 +172,20 @@ export default function PlayerPage() {
             const libraryData = await libraryResponse.json();
             setTrackCount(libraryData.trackCount || 0);
           }
+          const stateResponse = await fetch("/api/player/state", {
+            headers: { Authorization: "Bearer " + savedToken },
+            cache: "no-store",
+          });
+          if (stateResponse.ok) {
+            const stateData = await stateResponse.json();
+            if (!savedRequestId && stateData.currentRequestId) {
+              currentRequestRef.current = stateData.currentRequestId;
+              setCurrentRequestId(stateData.currentRequestId);
+              await saveCurrentRequestId(stateData.currentRequestId);
+              statusRef.current = "playing";
+              setPlayerStatus("playing");
+            }
+          }
         } else {
           setMessage("Подключи Fusion Player одноразовым ключом из панели владельца.");
         }
@@ -238,6 +253,20 @@ export default function PlayerPage() {
       if (libraryResponse.ok) {
         const libraryData = await libraryResponse.json();
         setTrackCount(libraryData.trackCount || 0);
+      }
+      const stateResponse = await fetch("/api/player/state", {
+        headers: { Authorization: "Bearer " + token },
+        cache: "no-store",
+      });
+      if (stateResponse.ok) {
+        const stateData = await stateResponse.json();
+        if (stateData.currentRequestId) {
+          currentRequestRef.current = stateData.currentRequestId;
+          setCurrentRequestId(stateData.currentRequestId);
+          await saveCurrentRequestId(stateData.currentRequestId);
+          statusRef.current = "playing";
+          setPlayerStatus("playing");
+        }
       }
       setDeviceToken(token);
       setConnected(true);
