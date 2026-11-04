@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const search = (request.nextUrl.searchParams.get("q") || "").trim().slice(0, 100);
-  const pattern = search.replace(/[\\%_]/g, "\\$&");
   const result = await query<{
     id: string;
     title: string;
@@ -18,11 +17,11 @@ export async function GET(request: NextRequest) {
      FROM tracks
      WHERE provider = 'local_library'
        AND is_available = TRUE
-       AND ($1 = '' OR title ILIKE '%' || $2 || '%' ESCAPE '\\'
-                       OR artist ILIKE '%' || $2 || '%' ESCAPE '\\')
+       AND ($1 = '' OR title ILIKE '%' || $1 || '%'
+                       OR artist ILIKE '%' || $1 || '%')
      ORDER BY lower(title), lower(artist)
      LIMIT 50`,
-    [search, pattern],
+    [search],
   );
 
   return NextResponse.json({
