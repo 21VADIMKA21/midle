@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "../../../../lib/session";
 import { query, getPool } from "../../../../lib/db";
+import { enqueueNextTrack } from "../../../../lib/player-queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -142,6 +143,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Channel settings have not been initialized." }, { status: 409 });
     }
 
+    const dispatchedRequestId = body.requestsEnabled === true
+      ? await enqueueNextTrack(client, session.channelId, session.userId)
+      : null;
+
     await client.query(
       `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
        VALUES ($1, $2, 'channel.settings.updated', $3::jsonb)`,
@@ -155,6 +160,7 @@ export async function POST(request: NextRequest) {
       maxPendingPerUser: result.rows[0].max_pending_per_user,
       skipVotePercent: result.rows[0].skip_vote_percent,
       musicRightsConfirmed: !!result.rows[0].music_rights_confirmed_at,
+      playerCommandQueued: !!dispatchedRequestId,
     });
   } catch {
     try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
