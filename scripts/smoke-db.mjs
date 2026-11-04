@@ -210,6 +210,25 @@ try {
     [channelId, requestId, userId],
   );
 
+  const chatEventId = randomUUID();
+  const chatEvent = await client.query(
+    `INSERT INTO twitch_chat_commands (event_id, channel_id, chatter_user_id, command)
+     VALUES ($1, $2, $3, 'track')
+     ON CONFLICT (event_id) DO NOTHING
+     RETURNING event_id`,
+    [chatEventId, channelId, "ci-chat-user"],
+  );
+  const duplicateChatEvent = await client.query(
+    `INSERT INTO twitch_chat_commands (event_id, channel_id, chatter_user_id, command)
+     VALUES ($1, $2, $3, 'track')
+     ON CONFLICT (event_id) DO NOTHING
+     RETURNING event_id`,
+    [chatEventId, channelId, "ci-chat-user"],
+  );
+  if (chatEvent.rowCount !== 1 || duplicateChatEvent.rowCount !== 0) {
+    throw new Error("Duplicate Twitch chat command events were not idempotent");
+  }
+
   const votes = await client.query(
     "SELECT COUNT(*)::int AS count FROM votes WHERE channel_id = $1 AND request_id = $2",
     [channelId, requestId],
