@@ -150,6 +150,7 @@ export default function DashboardPage() {
         <Link className="brand" href="/"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></Link>
         <div className="top-right">
           <span className="channel">ПАНЕЛЬ ВЛАДЕЛЬЦА</span>
+          <Link className="twitch-login" href="/api/auth/twitch/owner">Переподключить Twitch</Link>
           <Link className="twitch-login" href="/">На главную</Link>
         </div>
       </header>
