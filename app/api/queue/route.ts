@@ -123,7 +123,7 @@ export async function GET() {
       },
       revision: Number(stateResult.rows[0]?.revision || 0),
     };
-    setQueueCache(undefined, payload);
+    setQueueCache(payload);
     return NextResponse.json(payload, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
