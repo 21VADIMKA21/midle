@@ -41,6 +41,8 @@ let currentWorkerStatus = "starting";
 let lastMessageAt = Date.now();
 let keepaliveTimeoutSeconds = 10;
 let stopping = false;
+let chatSendQueue = Promise.resolve();
+let lastChatSendAt = 0;
 
 function encryptionKey() {
   const key = Buffer.from(TOKEN_ENCRYPTION_KEY, "base64");
@@ -206,29 +208,40 @@ async function getChattersTotal(owner) {
   return total;
 }
 
-async function sendChatMessage(owner, message, replyTo) {
-  const body = {
-    broadcaster_id: owner.broadcasterId,
-    sender_id: owner.broadcasterId,
-    message: String(message).slice(0, 450),
-  };
-  if (replyTo) body.reply_parent_message_id = replyTo;
+function sendChatMessage(owner, message, replyTo) {
+  const task = chatSendQueue.then(async () => {
+    const waitMs = Math.max(0, 1_100 - (Date.now() - lastChatSendAt));
+    if (waitMs) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
 
-  const response = await fetch("https://api.twitch.tv/helix/chat/messages", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + owner.accessToken,
-      "Client-Id": TWITCH_CLIENT_ID,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    cache: "no-store",
+    const body = {
+      broadcaster_id: owner.broadcasterId,
+      sender_id: owner.broadcasterId,
+      message: String(message).slice(0, 450),
+    };
+    if (replyTo) body.reply_parent_message_id = replyTo;
+
+    const response = await fetch("https://api.twitch.tv/helix/chat/messages", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + owner.accessToken,
+        "Client-Id": TWITCH_CLIENT_ID,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    lastChatSendAt = Date.now();
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error("Twitch chat reply failed (" + response.status + "): " + detail.slice(0, 250));
+    }
   });
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error("Twitch chat reply failed (" + response.status + "): " + detail.slice(0, 250));
-  }
+  chatSendQueue = task.catch(() => undefined);
+  return task;
 }
 
 async function ensureUser(client, event) {
