@@ -286,6 +286,15 @@ async function enqueueNextTrack(client, channelId, createdBy) {
 }
 
 async function recordCommandEvent(client, owner, eventId, event, command) {
+  const recent = await client.query(
+    `SELECT 1 FROM twitch_chat_commands
+     WHERE channel_id = $1
+       AND chatter_user_id = $2
+       AND command = $3
+       AND created_at > NOW() - INTERVAL '5 seconds'
+     LIMIT 1`,
+    [owner.channelId, event.chatter_user_id, command],
+  );
   const inserted = await client.query(
     `INSERT INTO twitch_chat_commands (event_id, channel_id, chatter_user_id, command)
      VALUES ($1, $2, $3, $4)
@@ -293,19 +302,29 @@ async function recordCommandEvent(client, owner, eventId, event, command) {
      RETURNING event_id`,
     [eventId, owner.channelId, event.chatter_user_id, command],
   );
-  return inserted.rowCount > 0;
+  return {
+    inserted: inserted.rowCount > 0,
+    throttled: recent.rowCount > 0,
+  };
 }
 
 async function handleTrackCommand(owner, event, eventId, searchText) {
   const term = normalizeTrackSearch(searchText);
-  if (!term) return "Использование: !трек название композиции";
-
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    if (!(await recordCommandEvent(client, owner, eventId, event, "track"))) {
+    const eventRecord = await recordCommandEvent(client, owner, eventId, event, "track");
+    if (!eventRecord.inserted) {
       await client.query("ROLLBACK");
       return null;
+    }
+    if (eventRecord.throttled) {
+      await client.query("COMMIT");
+      return null;
+    }
+    if (!term) {
+      await client.query("COMMIT");
+      return "Использование: !трек название композиции";
     }
 
     const userId = await ensureUser(client, event);
@@ -444,8 +463,13 @@ async function handleSkipCommand(owner, event, eventId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    if (!(await recordCommandEvent(client, owner, eventId, event, "skip"))) {
+    const eventRecord = await recordCommandEvent(client, owner, eventId, event, "skip");
+    if (!eventRecord.inserted) {
       await client.query("ROLLBACK");
+      return null;
+    }
+    if (eventRecord.throttled) {
+      await client.query("COMMIT");
       return null;
     }
 
