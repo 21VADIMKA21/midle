@@ -75,10 +75,6 @@ export async function POST(request: NextRequest) {
       [body.deviceId],
     );
     await client.query(
-      "UPDATE player_commands SET status = 'cancelled' WHERE device_id = $1 AND status IN ('pending', 'delivered')",
-      [body.deviceId],
-    );
-    await client.query(
       `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
        VALUES ($1, $2, 'player.device.revoked', $3::jsonb)`,
       [session.channelId, session.userId, JSON.stringify({ deviceId: body.deviceId, name: revoked.rows[0].name })],
@@ -86,6 +82,16 @@ export async function POST(request: NextRequest) {
 
     await client.query("COMMIT");
     invalidateQueueCache();
+
+    // Cancel commands after releasing queue/device locks. The revoked token can no longer poll them.
+    try {
+      await getPool().query(
+        "UPDATE player_commands SET status = 'cancelled' WHERE device_id = $1 AND status IN ('pending', 'delivered')",
+        [body.deviceId],
+      );
+    } catch {
+      // Revocation remains effective even if best-effort command cleanup fails.
+    }
 
     return NextResponse.json({ success: true });
   } catch {
