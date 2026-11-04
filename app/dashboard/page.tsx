@@ -92,7 +92,7 @@ export default function DashboardPage() {
     if (!pairToken) return;
     try {
       await navigator.clipboard.writeText(pairToken);
-      setMessage("Ключ скопирован. Вставь его в Fusion Player на компьютере.");
+      setMessage("Ключ скопирован. Сохрани его — позже введёшь в Fusion Player в Chrome/Edge.");
     } catch {
       setMessage("Не удалось скопировать ключ. Выдели его и скопируй вручную.");
     }
@@ -159,7 +159,7 @@ export default function DashboardPage() {
               <div><strong>{device.name}</strong><span>{device.status === "offline" ? "Не в сети" : "Подключён"} · {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "ещё не подключался"}</span></div>
               <button className="revoke-action" type="button" onClick={() => revokeDevice(device.id)} disabled={busy}>Отключить</button>
             </div>
-          )) : <p className="muted">Пока нет подключённых проигрывателей. Создай ключ и введи его в приложении Fusion Player.</p>}
+          )) : <p className="muted">Пока нет подключённых проигрывателей. Создай ключ. Когда будет готов Fusion Player в Chrome/Edge, вставь его туда.</p>}
 
           {pairToken ? (
             <div className="pair-token">
