@@ -35,6 +35,8 @@ export async function getTwitchModerators(broadcasterId: string): Promise<Twitch
         Authorization: "Bearer " + token.accessToken,
         "Client-Id": clientId,
       },
+      signal: AbortSignal.timeout(10_000),
+
       cache: "no-store",
     });
 
