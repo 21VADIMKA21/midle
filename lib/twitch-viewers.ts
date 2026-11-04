@@ -31,6 +31,8 @@ async function getAppAccessToken(): Promise<string> {
       client_secret: clientSecret,
       grant_type: "client_credentials",
     }),
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
 
@@ -62,6 +64,8 @@ export async function getLiveViewerCount(broadcasterId: string): Promise<number 
       Authorization: "Bearer " + token,
       "Client-Id": clientId,
     },
+    signal: AbortSignal.timeout(10_000),
+
     cache: "no-store",
   });
 
