@@ -82,6 +82,7 @@ try {
     "INSERT INTO requests (channel_id, track_id, requester_id, status) VALUES ($1, $2, $3, 'queued') RETURNING id",
     [channelId, localTrackRow.rows[0].id, userId],
   );
+  await client.query("UPDATE requests SET status = 'played' WHERE id = $1", [requestId]);
   await client.query(
     "UPDATE queue_state SET current_request_id = NULL WHERE channel_id = $1",
     [channelId],
