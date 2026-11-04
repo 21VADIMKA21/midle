@@ -11,6 +11,8 @@ type Track = {
   duration: string | null;
   artworkUrl: string | null;
   skipVotes?: number;
+  skipThreshold?: number;
+  eligibleChatters?: number;
 };
 
 type Viewer = { displayName: string | null; login: string | null; role: "owner" | "moderator" | "vip" | null };
@@ -169,11 +171,34 @@ export default function Home() {
         return;
       }
       setCurrentTrack((track) => track
-        ? { ...track, skipVotes: result.skipVotes }
+        ? {
+            ...track,
+            skipVotes: result.skipVotes,
+            skipThreshold: result.skipThreshold,
+            eligibleChatters: result.eligibleChatters,
+          }
         : track);
-      setNotice(result.alreadyVoted ? `Твой голос уже учтён. Всего голосов: ${result.skipVotes}.` : `Голос за пропуск учтён. Всего голосов: ${result.skipVotes}.`);
+      setNotice(result.skipCommandQueued
+        ? "Порог голосования достигнут — команда пропуска отправлена."
+        : result.alreadyVoted
+          ? "Твой голос уже учтён."
+          : "Голос за пропуск учтён.");
     } catch {
       setNotice("Не удалось отправить голос. Проверь соединение.");
+    }
+  }
+
+  async function forceSkip() {
+    try {
+      const response = await fetch("/api/queue/skip", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setNotice(data.error || "Не удалось пропустить трек.");
+        return;
+      }
+      setNotice("Команда принудительного пропуска отправлена проигрывателю.");
+    } catch {
+      setNotice("Не удалось пропустить трек. Проверь соединение.");
     }
   }
 
@@ -212,7 +237,13 @@ export default function Home() {
           <article className="now-card">
             <div className="cover"><div className="cover-glow"/><span className="cover-label">FUSION<br/>FM</span><span className="cover-symbol">◉</span></div>
             {currentTrack ? (
-              <div className="track-info"><span className="track-tag">СЕЙЧАС ИГРАЕТ</span><h3>{currentTrack.title}</h3><p>{currentTrack.artist}</p><div className="time-row"><span>Запросил: {currentTrack.requester || "зритель"}</span><span>{currentTrack.duration || "—"}</span></div><div className="skip-actions">{viewer ? <button className="skip-vote" type="button" onClick={voteToSkip}>Голосовать за скип · {currentTrack.skipVotes || 0}</button> : <a className="skip-vote" href="/api/auth/twitch">Войти, чтобы голосовать</a>}</div></div>
+              <div className="track-info"><span className="track-tag">СЕЙЧАС ИГРАЕТ</span><h3>{currentTrack.title}</h3><p>{currentTrack.artist}</p><div className="time-row"><span>Запросил: {currentTrack.requester || "зритель"}</span><span>{currentTrack.duration || "—"}</span></div><div className="skip-actions">
+                {viewer?.role === "owner" || viewer?.role === "moderator"
+                  ? <button className="skip-vote" type="button" onClick={forceSkip}>Пропустить трек</button>
+                  : viewer
+                    ? <button className="skip-vote" type="button" onClick={voteToSkip}>Голосовать за скип · {currentTrack.skipVotes || 0}{currentTrack.skipThreshold ? " / " + currentTrack.skipThreshold : ""}</button>
+                    : <a className="skip-vote" href="/api/auth/twitch">Войти, чтобы голосовать</a>}
+              </div></div>
             ) : (
               <div className="track-info"><span className="track-tag">ПОКА ПУСТО</span><h3>Нет активного трека</h3><p>Здесь появится композиция, когда будет подключён проигрыватель.</p></div>
             )}
