@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "db:migrate": "node scripts/migrate.mjs",
-    "db:smoke": "node scripts/smoke-db.mjs"
+    "db:smoke": "node scripts/smoke-db.mjs",
+    "test:chat": "node --test scripts/chat-command.test.mjs"
   },
   "dependencies": {
     "next": "16.4.5",
