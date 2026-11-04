@@ -106,6 +106,23 @@ export default function DashboardPage() {
     }
   }
 
+  async function syncModerators() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/channel/roles/sync", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error || "Не удалось синхронизировать модераторов.");
+        return;
+      }
+      setMessage("Список модераторов Twitch обновлён: " + data.moderatorCount + ".");
+    } catch {
+      setMessage("Не удалось синхронизировать модераторов Twitch.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleRequests() {
     setBusy(true);
     try {
@@ -212,6 +229,14 @@ export default function DashboardPage() {
           <button className="dashboard-action" type="button" onClick={toggleRequests} disabled={busy || (!requestsEnabled && devices.length === 0)}>
             {requestsEnabled ? "Закрыть приём заявок" : "Открыть приём заявок"}
           </button>
+        </section>
+
+        <section className="dashboard-card">
+          <div className="dashboard-section-head">
+            <div><p className="eyebrow">TWITCH MODERATION</p><h2>Модераторы</h2></div>
+          </div>
+          <p className="muted">Синхронизируй роли модераторов Twitch. После этого они смогут пропускать треки через панель и команды сервиса.</p>
+          <button className="dashboard-action" type="button" onClick={syncModerators} disabled={busy}>Синхронизировать модераторов</button>
         </section>
         </>
       )}
