@@ -119,6 +119,15 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      await client.query(
+        "SELECT channel_id FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+      await client.query(
+        "SELECT channel_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
+        [device.channelId],
+      );
+
       const deviceLock = await client.query(
         "SELECT id FROM player_devices WHERE id = $1 AND channel_id = $2 AND revoked_at IS NULL FOR UPDATE",
         [device.id, device.channelId],
