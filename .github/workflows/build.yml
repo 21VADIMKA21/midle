@@ -10,12 +10,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: fusion-music-build-${{ github.ref }}
+  group: fusion-music-build-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
