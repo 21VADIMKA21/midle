@@ -90,6 +90,7 @@ export default function PlayerPage() {
   const [directory, setDirectory] = useState<FusionDirectoryHandle | null>(null);
   const [trackCount, setTrackCount] = useState(0);
   const [libraryReady, setLibraryReady] = useState(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Подготавливаем Fusion Player…");
   const [outputDevice, setOutputDevice] = useState("");
@@ -98,6 +99,7 @@ export default function PlayerPage() {
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>("online");
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const fileMapRef = useRef<Map<string, FusionFileHandle>>(new Map());
   const currentRequestRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -373,7 +375,7 @@ export default function PlayerPage() {
   }, [syncLibrary]);
 
   useEffect(() => {
-    if (!deviceToken || !connected || !libraryReady) return;
+    if (!deviceToken || !connected || !libraryReady || !audioUnlocked) return;
     let stopped = false;
     let polling = false;
 
@@ -413,7 +415,7 @@ export default function PlayerPage() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [deviceToken, connected, libraryReady, engineContext]);
+  }, [deviceToken, connected, libraryReady, audioUnlocked, engineContext]);
 
   const handleTrackEnded = useCallback(async () => {
     if (!deviceToken) return;
@@ -425,6 +427,25 @@ export default function PlayerPage() {
       setMessage("Не удалось сообщить серверу об окончании трека. Повторная синхронизация потребуется.");
     }
   }, [deviceToken, engineContext]);
+
+  async function enableAudio() {
+    try {
+      const context = audioContextRef.current || new AudioContext();
+      audioContextRef.current = context;
+      await context.resume();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.02);
+      setAudioUnlocked(true);
+      setMessage("Автоматическое воспроизведение разрешено. Fusion Player готов запускать треки.");
+    } catch {
+      setMessage("Не удалось активировать аудио. Проверь настройки браузера.");
+    }
+  }
 
   async function chooseOutput() {
     if (!navigator.mediaDevices?.selectAudioOutput) {
@@ -483,7 +504,16 @@ export default function PlayerPage() {
 
       <section className="dashboard-card">
         <div className="dashboard-section-head">
-          <div><p className="eyebrow">02 · LOCAL LIBRARY</p><h2>Музыкальная папка</h2></div>
+          <div><p className="eyebrow">02 · AUDIO PERMISSION</p><h2>Разрешить воспроизведение</h2></div>
+          <span className={"player-state " + (audioUnlocked ? "is-online" : "")}>{audioUnlocked ? "Разрешено" : "Требуется действие"}</span>
+        </div>
+        <p className="muted">Нажми один раз, чтобы Chrome/Edge разрешил автоматический запуск музыки из очереди.</p>
+        <button className="dashboard-action" type="button" onClick={enableAudio} disabled={audioUnlocked}>Разрешить аудио</button>
+      </section>
+
+      <section className="dashboard-card">
+        <div className="dashboard-section-head">
+          <div><p className="eyebrow">03 · LOCAL LIBRARY</p><h2>Музыкальная папка</h2></div>
           <span className="player-state">{trackCount ? trackCount + " треков синхронизировано" : "Не синхронизирована"}</span>
         </div>
         <p className="muted">{directory ? "Выбрана папка: " + directory.name : "Выбери папку, в которой лежат аудиофайлы с разрешением на трансляцию."}</p>
@@ -496,7 +526,7 @@ export default function PlayerPage() {
 
       <section className="dashboard-card">
         <div className="dashboard-section-head">
-          <div><p className="eyebrow">03 · PLAYBACK</p><h2>Сейчас играет</h2></div>
+          <div><p className="eyebrow">04 · PLAYBACK</p><h2>Сейчас играет</h2></div>
           <span className={"player-state " + (playerStatus === "playing" ? "is-online" : "")}>{playerStatus === "playing" ? "Воспроизведение" : playerStatus === "paused" ? "Пауза" : playerStatus === "error" ? "Ошибка" : "Ожидание"}</span>
         </div>
         {currentTrack ? <p className="now-playing-title">{currentTrack.title}</p> : <p className="muted">Пока ничего не воспроизводится.</p>}
@@ -505,7 +535,7 @@ export default function PlayerPage() {
 
       <section className="dashboard-card">
         <div className="dashboard-section-head">
-          <div><p className="eyebrow">04 · OBS AUDIO</p><h2>Аудиовыход</h2></div>
+          <div><p className="eyebrow">05 · OBS AUDIO</p><h2>Аудиовыход</h2></div>
           <span className="player-state">{outputDevice || "Не выбран"}</span>
         </div>
         <p className="muted">Выбери отдельный аудиовыход (например, виртуальный кабель), а затем добавь его в OBS как источник Audio Input Capture.</p>
