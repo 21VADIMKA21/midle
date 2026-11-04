@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
       [session.channelId],
     );
 
-    if (Number(countResult.rows[0]?.count || 0) >= 3) {
+    if (Number(countResult.rows[0]?.count || 0) >= 1) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "This channel already has the maximum of 3 active players." }, { status: 409 });
+      return NextResponse.json({ error: "This channel already has the only one active player is supported for this channel." }, { status: 409 });
     }
 
     const deviceToken = randomBytes(32).toString("base64url");
