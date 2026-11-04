@@ -91,7 +91,9 @@ export async function GET(request: NextRequest) {
       flow === "owner" &&
       (!tokenData.refresh_token ||
         !tokenData.scope?.includes("moderator:read:chatters") ||
-        !tokenData.scope.includes("moderation:read"))
+        !tokenData.scope.includes("moderation:read") ||
+        !tokenData.scope.includes("user:read:chat") ||
+        !tokenData.scope.includes("user:write:chat"))
     ) {
       return redirectWithStatus(request, "scope-missing", flow);
     }
