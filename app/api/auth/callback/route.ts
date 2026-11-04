@@ -165,24 +165,28 @@ export async function GET(request: NextRequest) {
           [channelId, userId],
         );
       }
-      await client.query(
-        `INSERT INTO twitch_tokens
-           (user_id, access_token_encrypted, refresh_token_encrypted, scopes, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (user_id) DO UPDATE SET
-           access_token_encrypted = EXCLUDED.access_token_encrypted,
-           refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
-           scopes = EXCLUDED.scopes,
-           expires_at = EXCLUDED.expires_at,
-           updated_at = NOW()`,
-        [
-          userId,
-          encryptToken(tokenData.access_token),
-          encryptToken(tokenData.refresh_token),
-          tokenData.scope || [],
-          tokenExpiresAt,
-        ],
-      );
+      // Only the configured broadcaster needs a persistent Twitch API token.
+      // Viewer logins create a short-lived application session, not stored OAuth credentials.
+      if (twitchUser.id === broadcasterId) {
+        await client.query(
+          `INSERT INTO twitch_tokens
+             (user_id, access_token_encrypted, refresh_token_encrypted, scopes, expires_at)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (user_id) DO UPDATE SET
+             access_token_encrypted = EXCLUDED.access_token_encrypted,
+             refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
+             scopes = EXCLUDED.scopes,
+             expires_at = EXCLUDED.expires_at,
+             updated_at = NOW()`,
+          [
+            userId,
+            encryptToken(tokenData.access_token),
+            encryptToken(tokenData.refresh_token),
+            tokenData.scope || [],
+            tokenExpiresAt,
+          ],
+        );
+      }
       await client.query("DELETE FROM sessions WHERE expires_at < NOW()");
       await client.query(
         "INSERT INTO sessions (token_hash, user_id, channel_id, expires_at) VALUES ($1, $2, $3, $4)",
