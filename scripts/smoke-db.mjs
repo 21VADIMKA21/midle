@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -48,6 +48,31 @@ try {
     [channelId, `token-hash-${suffix}`],
   );
   const playerId = player.rows[0].id;
+
+  const localHash = createHash("sha256").update(suffix).digest("hex");
+  await client.query(
+    "UPDATE tracks SET is_available = FALSE WHERE provider = 'local_library'",
+  );
+  await client.query(
+    `INSERT INTO tracks
+       (provider, provider_track_id, title, artist, duration_seconds, metadata, is_available, last_seen_at)
+     VALUES ('local_library', $1, 'Local smoke track', 'Fusion', 180, $2::jsonb, TRUE, NOW())
+     ON CONFLICT (provider, provider_track_id) DO UPDATE SET
+       is_available = TRUE, last_seen_at = NOW(), metadata = EXCLUDED.metadata`,
+    [localHash, JSON.stringify({ format: "mp3", fileSize: 1024 })],
+  );
+  await client.query(
+    `INSERT INTO player_library_syncs (device_id, channel_id, track_count, total_bytes)
+     VALUES ($1, $2, 1, 1024)`,
+    [playerId, channelId],
+  );
+  const libraryTrack = await client.query(
+    "SELECT is_available, metadata->>'format' AS format FROM tracks WHERE provider = 'local_library' AND provider_track_id = $1",
+    [localHash],
+  );
+  if (!libraryTrack.rows[0]?.is_available || libraryTrack.rows[0]?.format !== "mp3") {
+    throw new Error("Local music library metadata was not stored correctly");
+  }
 
   await client.query(
     `INSERT INTO player_sessions
@@ -138,7 +163,7 @@ try {
 
   await client.query("ROLLBACK TO SAVEPOINT unique_playing_test");
   await client.query("ROLLBACK");
-  console.log("Database smoke checks passed: queue integrity, unique skip votes, player command acknowledgements and idempotent player events.");
+  console.log("Database smoke checks passed: queue integrity, unique skip votes, local library sync metadata, player command acknowledgements and idempotent player events.");
 } catch (error) {
   try { await client.query("ROLLBACK"); } catch { /* connection already failed */ }
   console.error("Database smoke checks failed:", error);
