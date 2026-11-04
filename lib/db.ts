@@ -12,14 +12,17 @@ function createPool(): Pool {
     throw new Error("DATABASE_URL is not configured");
   }
 
+  const sslMode = new URL(connectionString).searchParams.get("sslmode");
+  const ssl = sslMode && sslMode !== "disable"
+    ? { rejectUnauthorized: sslMode === "verify-ca" || sslMode === "verify-full" }
+    : undefined;
+
   return new Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
-    ssl: connectionString.includes("localhost")
-      ? undefined
-      : { rejectUnauthorized: true },
+    ssl,
   });
 }
 
