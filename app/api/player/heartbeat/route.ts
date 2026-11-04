@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "../../../../lib/db";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
+import { enqueueNextTrack } from "../../../../lib/player-queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
 
     const pool = getPool();
     const client = await pool.connect();
+    let nextRequestId: string | null = null;
 
     try {
       await client.query("BEGIN");
@@ -77,6 +79,10 @@ export async function POST(request: NextRequest) {
         [device.id],
       );
 
+      if (body.status === "online" && currentRequestId === null) {
+        nextRequestId = await enqueueNextTrack(client, device.channelId);
+      }
+
       await client.query("COMMIT");
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
     const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
     if (broadcasterId) invalidateQueueCache(broadcasterId);
 
-    return NextResponse.json({ success: true, receivedAt: new Date().toISOString() });
+    return NextResponse.json({ success: true, receivedAt: new Date().toISOString(), nextRequestId });
   } catch {
     return NextResponse.json({ error: "Player heartbeat is temporarily unavailable." }, { status: 503 });
   }
