@@ -32,6 +32,8 @@ const pool = new Pool({
 
 let lockClient;
 let ownerCache = null;
+let appAccessToken = null;
+let appTokenExpiresAt = 0;
 let chattersCache = { total: null, expiresAt: 0 };
 let streamLiveCache = { live: null, expiresAt: 0 };
 let activeSocket = null;
@@ -185,6 +187,33 @@ async function getOwnerContext(forceRefresh = false) {
   return ownerCache;
 }
 
+async function getAppAccessToken() {
+  if (appAccessToken && Date.now() < appTokenExpiresAt - 60_000) {
+    return appAccessToken;
+  }
+
+  const response = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: TWITCH_CLIENT_ID,
+      client_secret: TWITCH_CLIENT_SECRET,
+      grant_type: "client_credentials",
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Twitch app access token request failed");
+
+  const data = await response.json();
+  if (!data.access_token || !data.expires_in) {
+    throw new Error("Twitch app access token response was incomplete");
+  }
+
+  appAccessToken = data.access_token;
+  appTokenExpiresAt = Date.now() + data.expires_in * 1000;
+  return appAccessToken;
+}
+
 async function isChannelLive(owner) {
   if (streamLiveCache.live !== null && streamLiveCache.expiresAt > Date.now()) {
     return streamLiveCache.live;
@@ -192,9 +221,10 @@ async function isChannelLive(owner) {
 
   const url = new URL("https://api.twitch.tv/helix/streams");
   url.searchParams.set("user_id", owner.broadcasterId);
+  const appToken = await getAppAccessToken();
   const response = await fetch(url, {
     headers: {
-      Authorization: "Bearer " + owner.accessToken,
+      Authorization: "Bearer " + appToken,
       "Client-Id": TWITCH_CLIENT_ID,
     },
     cache: "no-store",
