@@ -16,8 +16,6 @@ services:
         fromDatabase:
           name: fusion-music-db
           property: connectionString
-      - key: TWITCH_BROADCASTER_ID
-        sync: false
       - key: TWITCH_CLIENT_ID
         sync: false
       - key: TWITCH_CLIENT_SECRET
@@ -32,7 +30,7 @@ databases:
     databaseName: fusion_music
     user: fusion_music
     region: frankfurt
-    plan: 0.1c-256mb
+    plan: 0.5c-1g
     diskSizeGB: 1
     ipAllowList: []
     postgresMajorVersion: "16"
