@@ -49,7 +49,7 @@ export async function GET(_request: NextRequest) {
       });
     }
 
-    const [queueResult, stateResult, playerResult] = await Promise.all([
+    const [queueResult, stateResult, playerResult, voteResult] = await Promise.all([
       query<QueueRow>(
         `SELECT r.id AS request_id, t.title, t.artist, t.artwork_url,
                 u.display_name AS requester_name, r.status, t.duration_seconds, r.created_at
@@ -73,6 +73,13 @@ export async function GET(_request: NextRequest) {
          LIMIT 1`,
         [channel.id],
       ),
+      query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM votes
+         WHERE channel_id = $1
+           AND request_id = (SELECT current_request_id FROM queue_state WHERE channel_id = $1)
+           AND vote = 'skip'`,
+        [channel.id],
+      ),
     ]);
 
     const rows = queueResult.rows;
@@ -94,6 +101,7 @@ export async function GET(_request: NextRequest) {
         artworkUrl: current.artwork_url,
         requester: current.requester_name,
         duration: formatDuration(current.duration_seconds),
+        skipVotes: Number(voteResult.rows[0]?.count || 0),
       } : null,
       queue: upcoming.map((row, index) => ({
         id: row.request_id,
