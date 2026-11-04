@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
 
     if (expiredCommands.rowCount) {
       const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-      if (broadcasterId) invalidateQueueCache(broadcasterId);
+      invalidateQueueCache();
     }
 
     return NextResponse.json({
