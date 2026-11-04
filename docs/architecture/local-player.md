@@ -1,116 +1,105 @@
-# Fusion Player — installable browser player specification
+# Fusion Player — локальный браузерный проигрыватель
 
-> Status: server-side player control plane implemented; installable PWA is next  
-> Target: Chrome/Edge on Windows 10/11, first release  
-> Primary role: local audio playback, local library indexing, Twitch chat connection, OBS routing
+> Статус: PWA, pairing, локальный каталог и command-driven audio engine реализованы; end-to-end проверка на реальном Windows/OBS ПК ещё впереди.  
+> Цель первого релиза: Chrome/Edge на Windows 10/11.
 
-## 1. Why a separate local agent
+## 1. Разделение облака и локального компьютера
 
-The public site and request queue must remain available even when the streamer's PC is off. Audio playback and OBS capture, however, must happen on the streamer's PC. The local player is therefore a separate page/app window from the cloud queue, even though it is delivered by the same web deployment.
+Облачный сайт и очередь остаются доступны независимо от состояния стрима и ПК владельца. Воспроизведение и аудиомаршрутизация OBS происходят на компьютере стримера.
 
-The first release will use an owner-curated local music library as the fallback provider. This avoids extracting audio from YouTube/Spotify or depending on an undocumented third-party API. Only files for which the channel owner has the necessary broadcast rights may be added.
+Fusion Player поставляется как устанавливаемая PWA по адресу `/player`. Окно должно оставаться открытым во время воспроизведения. Если окно закрыто или ПК выключен, плеер становится offline, но сайт и очередь продолжают работать.
 
-## 2. Local player technology
+## 2. Реализованный браузерный клиент
 
-First release: an installable Progressive Web App (PWA) running in a dedicated Chrome/Edge app window on Windows.
+- Next.js PWA manifest, service worker и отдельная страница проигрывателя.
+- Поддерживаемые браузеры: актуальные Chrome/Edge с File System Access API.
+- Выбор папки через `showDirectoryPicker`, включая обход подпапок.
+- Сканирование MP3, M4A, WAV, OGG и FLAC; лимит первого релиза — 2 000 треков и 200 MB на файл.
+- Сервер получает только SHA-256, название, исполнителя, формат и размер. Аудиофайлы и абсолютные пути не отправляются.
+- Directory handle хранится в IndexedDB. Разрешение на чтение повторно запрашивается только после действия пользователя.
+- Device token шифруется AES-GCM в IndexedDB с неэкспортируемым Web Crypto ключом. Сервер хранит только SHA-256 хеш токена.
+- Перед обработкой команд требуется явное действие пользователя для разрешения браузерного воспроизведения.
+- Поддерживается выбор аудиовыхода через `selectAudioOutput` и `HTMLMediaElement.setSinkId`, если браузер/устройство это поддерживают.
 
-- Reuse the existing Next.js/React/TypeScript stack; no separate Electron installer or second runtime to maintain.
-- Use the File System Access API (`showDirectoryPicker`) to let the owner select the approved local music folder.
-- Persist the directory handle in IndexedDB; request permission again through an explicit user gesture if the browser revokes it.
-- Use the Web Audio/HTMLMediaElement playback pipeline. Where supported, `HTMLMediaElement.setSinkId()` selects the virtual audio output device directly.
-- Keep the device token in IndexedDB protected with Web Crypto AES-GCM and a non-extractable key. The server stores only its SHA-256 hash.
-- Use a strict Content Security Policy and never expose filesystem handles or device tokens to unrelated page components.
+PWA и его аудио-движок уже добавлены в репозиторий, но браузерные autoplay, форматы файлов, выбор виртуального устройства и устойчивость при сворачивании окна ещё должны быть проверены на целевом ПК.
 
-The player window must remain open on the streamer's PC while music is playing. It can be minimized; closing the window or shutting down the PC makes the player offline, while the cloud website and queue remain available. If browser filesystem/audio APIs prove unreliable on the target PC, Electron remains the fallback without changing the server protocol.
+## 3. Pairing и безопасность
 
-## 3. Device pairing and authentication
+1. Владелец входит через Twitch owner OAuth flow.
+2. В панели владельца создаётся одноразовый pairing token.
+3. Токен вводится в Fusion Player.
+4. Сервер хранит только хеш токена; raw token показывается один раз.
+5. Все запросы проигрывателя используют `Authorization: Bearer <device-token>`.
+6. Владелец может отозвать устройство; отозванный токен сразу перестаёт работать.
 
-1. The owner signs in to the Fusion Music website through Twitch.
-2. The owner creates a one-time pairing token from the owner panel.
-3. The owner enters/pastes the token into Fusion Player.
-4. The server stores only SHA-256 of the device token; the raw token is shown once and saved encrypted on the PC.
-5. Every request from the player uses `Authorization: Bearer <device-token>`.
-6. The owner can revoke a device from the website; revoked tokens stop working immediately.
+Device token не является Twitch OAuth token и не имеет Twitch API permissions. Плеер не получает Twitch client secret, refresh token или долгоживущий Twitch access token.
 
-A device token is not a Twitch OAuth token and has no Twitch API permissions. The browser player never receives the Twitch client secret or refresh token.
+## 4. Облачный протокол управления
 
-## 4. Cloud-to-player protocol
+Используется durable HTTP polling, а не fire-and-forget сообщения:
 
-Use durable HTTP polling rather than a long-lived WebSocket for the player command channel. This works with the planned Render deployment and survives ordinary network interruptions.
+- опрос команд примерно каждые 2 секунды;
+- heartbeat примерно каждые 15 секунд;
+- команды хранятся в PostgreSQL и имеют состояния доставки/подтверждения;
+- неподтверждённые команды повторяются; после лимита попыток сервер фиксирует ошибку и восстанавливает очередь;
+- события начала/окончания трека имеют idempotency event ID;
+- при завершении трека сервер сам отправляет следующую команду;
+- если устройство offline, заявки остаются в облачной очереди.
 
-- Poll pending commands every 2 seconds.
-- Send heartbeat every 15 seconds.
-- Acknowledge each command with success/failure and an optional short error code.
-- Commands are durable rows in PostgreSQL; they are not fire-and-forget in-memory messages.
-- The server marks commands delivered and acknowledged. Unacknowledged commands can be retried safely using a command ID.
-- Player state includes online/offline, idle/playing/paused/error, current request ID, client version and last heartbeat.
-- If the PC is offline, the website continues to accept and show queued requests; playback status is shown as offline.
-
-Initial command vocabulary:
-- `play` — play a specific approved library track;
+Команды, реализованные в клиенте:
+- `play` — воспроизвести конкретный файл из утверждённой библиотеки;
 - `pause` / `resume`;
 - `skip`;
 - `set_volume`;
 - `resync_library`.
 
-## 5. Local music library
+При восстановлении PWA сверяет сохранённый current request с серверной очередью и пытается продолжить воспроизведение текущего трека.
 
-The owner selects a folder in the player PWA. The player scans supported audio files and synchronizes only:
-- stable file hash (SHA-256);
-- title, artist, album (when present);
-- duration;
-- format and file size;
-- optional artwork metadata.
+## 5. Локальная библиотека и права
 
-The actual audio file and absolute local path never leave the PC. The server stores only catalog metadata and a provider identifier derived from the hash. A track is playable only if the local agent can resolve that identifier to a file in the approved folder.
+В текущей реализации индексируются:
+- SHA-256 хеш файла;
+- название и исполнитель, извлекаемые из имени файла по шаблону `Artist - Title`;
+- формат и размер.
 
-The catalog must not accept arbitrary viewer-uploaded files or arbitrary URLs. The owner is responsible for ensuring every file has the rights needed for the Twitch broadcast; owning a personal copy alone does not necessarily grant broadcast rights.
+Длительность, теги ID3, обложки и автоматическое чтение метаданных — последующее улучшение. Каталог не принимает произвольные пользовательские URL или загруженные зрителями аудиофайлы.
 
-## 6. Twitch chat integration
+Владелец обязан добавлять только музыку, на которую есть права, покрывающие публичную трансляцию на Twitch и пользовательскую очередь. Наличие личной копии, подписки или пометки «copyright-free» само по себе не подтверждает такие права.
 
-The local player will maintain a Twitch EventSub WebSocket connection while online. The server remains responsible for OAuth and token refresh.
+## 6. Twitch и роли
 
-- Request only the required broadcaster scopes when the chat integration is implemented (initially `user:read:chat`; add `moderator:read:chatters` only when live-chatter eligibility is enabled).
-- The server can issue a short-lived broadcaster access token to the paired local agent over HTTPS; the agent keeps it in memory and requests a fresh one when reconnecting.
-- The player subscribes to `channel.chat.message`, parses `!трек` and `!скип`, and forwards normalized commands to the server.
-- Twitch roles are verified server-side; chat badges supplied by a client are not trusted as authorization.
-- When the agent is offline, chat commands are unavailable, but the public website and queue remain online.
-
-The chat connection is deliberately part of the local agent in the first release, avoiding a second always-on cloud worker. If the product later needs chat commands while the streamer PC is offline, move the EventSub connection to a dedicated cloud worker.
+- Owner OAuth flow запрашивает `moderator:read:chatters` и `moderation:read`.
+- Viewer OAuth flow запрашивает только базовую идентификацию.
+- Owner token хранится зашифрованным на сервере и обновляется через refresh token.
+- Голосовать за пропуск могут только пользователи, присутствующие в актуальном списке Twitch chatters.
+- Порог голосования рассчитывается от числа текущих чаттеров; список кэшируется на короткий срок.
+- Список модераторов синхронизируется из Twitch; модераторы получают право принудительного пропуска после входа через Twitch.
+- EventSub/chat commands `!трек` и `!скип` ещё не реализованы.
 
 ## 7. OBS audio routing
 
-- Fusion Player outputs audio to a dedicated virtual audio device or explicitly selected output device.
-- OBS captures that device as a separate audio source.
-- Live stream track includes music.
-- VOD track excludes music.
-- Local recording behavior is configured separately and tested explicitly.
-- The player exposes a simple audio test tone and meter so the owner can verify routing before going live.
+Целевой сценарий:
+- Fusion Player выводит звук в отдельный виртуальный аудиовыход.
+- OBS захватывает его как отдельный источник.
+- В эфирную дорожку включается музыка.
+- В VOD-дорожку музыка не попадает.
+- Локальная запись проверяется отдельно и настраивается согласно желаемому результату.
 
-Audio track separation is not a substitute for music rights. The exact Windows device and OBS track settings will be validated on the owner's PC before enabling playback.
+Сейчас реализован выбор аудиовыхода в PWA, но не выполнена проверка реального аудиосигнала и дорожек OBS. До такой проверки нельзя обещать, что музыка исключена из VOD или локальной записи. Разделение аудиодорожек не заменяет лицензию на музыку в прямом эфире.
 
-## 8. Reliability requirements
+## 8. Надёжность и оставшиеся проверки
 
-- Reconnect with exponential backoff and jitter.
-- Persist device identity and settings securely.
-- Never lose a command silently; acknowledge or report a failure.
-- On startup, reconcile player state with server queue state before accepting playback commands.
-- On track completion, report completion once using an idempotent event ID.
-- A stale heartbeat changes the website status to offline.
-- Log diagnostic codes and timings, but never log bearer tokens, OAuth tokens or absolute paths.
-- If a file is missing or its hash no longer matches, mark it unavailable and report a recoverable error rather than skipping silently.
+- [x] PostgreSQL-схема устройств, команд, сессий и idempotent track events.
+- [x] Owner-only pairing, хеширование device token и отзыв устройства.
+- [x] Durable command polling, acknowledgement, retry и heartbeat.
+- [x] PWA manifest/service worker и страница `/player`.
+- [x] Локальная папка, индексирование файлов и синхронизация каталога.
+- [x] Браузерный audio engine, обработка play/pause/resume/skip и восстановление текущего трека.
+- [x] Выбор аудиовыхода при поддержке браузера.
+- [ ] Проверить autoplay и длительное воспроизведение в установленной PWA.
+- [ ] Проверить восстановление после сна Windows, потери сети, перезапуска браузера и отсутствующего файла.
+- [ ] Проверить реальный сигнал на виртуальном аудиоустройстве.
+- [ ] Проверить эфирную/VOD/локальную OBS дорожки.
+- [ ] Выполнить end-to-end тест с реальным Twitch и подтверждённым музыкальным каталогом.
 
-## 9. Implementation order
-
-- [x] Database schema for devices, commands, sessions and idempotent track events.
-- [x] Owner-only pairing endpoint; raw device token is shown once and only its hash is stored.
-- [x] Bearer-token validation, durable command polling/retry, acknowledgement and heartbeat endpoints.
-- [x] Idempotent track lifecycle events (`started`, `finished`, `failed`) that update the server queue.
-- [x] Owner dashboard for pairing and revoking the single active player device.
-- [ ] Installable Chrome/Edge PWA with pairing and connection status.
-- [ ] Local folder scanner and catalog sync using File System Access API.
-- [ ] Local audio playback and output-device selection.
-- [ ] Twitch EventSub chat integration.
-- [ ] OBS routing test and PWA installation instructions.
-
-The server currently supports one active player device per channel. This avoids two computers attempting to play the same queue simultaneously; multi-device failover can be added later with an explicit active-device selection mechanism.
+Сервер поддерживает одно активное устройство на канал, чтобы два компьютера не воспроизводили одну очередь одновременно. Electron остаётся резервным вариантом, если File System Access API или браузерный audio engine окажутся нестабильными на целевом ПК.
