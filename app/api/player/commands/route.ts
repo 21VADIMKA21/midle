@@ -41,14 +41,16 @@ export async function GET(request: NextRequest) {
         const failedRequest = await client.query(
           `UPDATE requests
            SET status = 'failed', rejection_reason = 'player_ack_timeout', updated_at = NOW()
-           WHERE id = $1 AND channel_id = $2 AND status = 'queued'
+           WHERE id = $1 AND channel_id = $2 AND status IN ('queued', 'playing')
            RETURNING id`,
           [expired.payload.requestId, device.channelId],
         );
         if (failedRequest.rowCount) {
           await client.query(
-            "UPDATE queue_state SET revision = revision + 1, updated_at = NOW() WHERE channel_id = $1",
-            [device.channelId],
+            `UPDATE queue_state
+             SET current_request_id = NULL, revision = revision + 1, updated_at = NOW()
+             WHERE channel_id = $1 AND current_request_id = $2`,
+            [device.channelId, expired.payload.requestId],
           );
         }
         failedPlayCommand = true;
