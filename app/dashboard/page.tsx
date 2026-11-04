@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [requestsEnabled, setRequestsEnabled] = useState(false);
   const [musicRightsConfirmed, setMusicRightsConfirmed] = useState(false);
   const [rightsAcknowledged, setRightsAcknowledged] = useState(false);
+  const [chatWorkerStatus, setChatWorkerStatus] = useState("unknown");
   const [pairToken, setPairToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Загружаем панель…");
@@ -83,6 +84,42 @@ export default function DashboardPage() {
     void load();
     return () => { cancelled = true; };
   }, [loadDevices]);
+
+  useEffect(() => {
+    if (!authenticated || viewer?.role !== "owner") return;
+
+    let cancelled = false;
+    async function refreshChatWorkerStatus() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        const data = await response.json();
+        if (!cancelled) {
+          setChatWorkerStatus(data?.chatWorker?.status || "unknown");
+        }
+      } catch {
+        if (!cancelled) setChatWorkerStatus("unknown");
+      }
+    }
+
+    void refreshChatWorkerStatus();
+    const interval = window.setInterval(() => void refreshChatWorkerStatus(), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [authenticated, viewer?.role]);
+
+  const chatWorkerLabels: Record<string, string> = {
+    connected: "Команды !трек и !скип активны",
+    waiting_for_auth: "Нужно переподключить Twitch и выдать разрешения чата",
+    connecting: "Подключаемся к Twitch…",
+    reconnecting: "Восстанавливаем соединение с Twitch…",
+    stale: "Бот чата не отвечает",
+    not_started: "Бот чата ещё не запущен",
+    stopped: "Бот чата остановлен",
+    error: "Ошибка фонового бота",
+    unknown: "Статус бота пока неизвестен",
+  };
 
   async function pairPlayer() {
     setBusy(true);
@@ -216,6 +253,17 @@ export default function DashboardPage() {
         <section className="dashboard-card"><h2>Нет доступа</h2><p>У этой учётной записи нет прав владельца Fusion Music.</p></section>
       ) : (
         <>
+        <section className="dashboard-card chat-worker-card">
+          <div>
+            <p className="eyebrow">TWITCH CHAT</p>
+            <h2>Команды чата</h2>
+            <p className="muted">Статус фонового подключения к Twitch обновляется автоматически.</p>
+          </div>
+          <span className={"chat-worker-indicator" + (chatWorkerStatus === "connected" ? " is-connected" : "")}>
+            {chatWorkerLabels[chatWorkerStatus] || chatWorkerLabels.unknown}
+          </span>
+        </section>
+
         <section className="dashboard-card">
           <div className="dashboard-section-head">
             <div><p className="eyebrow">LOCAL PLAYER</p><h2>Проигрыватель</h2></div>
