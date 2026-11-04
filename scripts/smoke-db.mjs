@@ -88,8 +88,12 @@ try {
     [channelId],
   );
   await client.query(
-    "UPDATE player_sessions SET status = 'online', current_request_id = NULL, last_heartbeat_at = NOW() WHERE device_id = $1",
-    [playerId],
+    `INSERT INTO player_sessions
+       (channel_id, device_id, client_version, status, current_request_id, last_heartbeat_at)
+     VALUES ($1, $2, 'ci-smoke', 'online', NULL, NOW())
+     ON CONFLICT (device_id) WHERE device_id IS NOT NULL
+     DO UPDATE SET status = 'online', current_request_id = NULL, last_heartbeat_at = NOW()`,
+    [channelId, playerId],
   );
 
   const playerReady = await client.query(
@@ -123,10 +127,10 @@ try {
   );
 
   await client.query(
-    `INSERT INTO player_sessions
-       (channel_id, device_id, client_version, status, current_request_id, last_heartbeat_at)
-     VALUES ($1, $2, 'ci-smoke', 'playing', $3, NOW())`,
-    [channelId, playerId, requestId],
+    `UPDATE player_sessions
+     SET status = 'playing', current_request_id = $2, last_heartbeat_at = NOW()
+     WHERE device_id = $1`,
+    [playerId, requestId],
   );
 
   const command = await client.query(
