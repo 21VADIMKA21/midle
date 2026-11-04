@@ -108,7 +108,7 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topbar">
-        <a className="brand" href="#"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a>
+        <a className="brand" href="/"><span className="brand-mark">F</span><span>FUSION<span className="brand-light"> / MUSIC</span></span></a>
         <div className="top-right">
           <span className="status"><i /> СЕРВИС В РАЗРАБОТКЕ</span>
           {viewer
