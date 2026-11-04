@@ -50,7 +50,7 @@ export default function DashboardPage() {
         if (!data?.authenticated) {
           setAuthenticated(false);
           if (authStatus === "scope-missing") {
-            setMessage("Twitch не выдал необходимые разрешения. Повтори подключение и подтверди доступ к чаттерам и модерации.");
+            setMessage("Twitch не выдал необходимые разрешения. Повтори подключение и подтверди доступ к чтению и отправке сообщений, чаттерам и модерации.");
           } else if (authStatus === "not-owner") {
             setMessage("Этот Twitch-аккаунт не является владельцем настроенного канала.");
           } else {
