@@ -5,6 +5,7 @@ type StoredToken = {
   user_id: string;
   access_token_encrypted: string;
   refresh_token_encrypted: string;
+  scopes: string[];
   expires_at: Date;
 };
 
@@ -30,7 +31,7 @@ export async function getBroadcasterAccessToken(): Promise<string> {
 
     const tokenResult = await client.query<StoredToken>(
       `SELECT tt.user_id, tt.access_token_encrypted,
-              tt.refresh_token_encrypted, tt.expires_at
+              tt.refresh_token_encrypted, tt.scopes, tt.expires_at
        FROM channels c
        JOIN channel_roles cr ON cr.channel_id = c.id AND cr.role = 'owner'
        JOIN users u ON u.id = cr.user_id AND u.twitch_user_id = c.twitch_broadcaster_id
@@ -88,7 +89,7 @@ export async function getBroadcasterAccessToken(): Promise<string> {
         stored.user_id,
         encryptToken(refreshed.access_token),
         encryptToken(nextRefreshToken),
-        refreshed.scope || [],
+        refreshed.scope?.length ? refreshed.scope : stored.scopes || [],
         nextExpiry,
       ],
     );
