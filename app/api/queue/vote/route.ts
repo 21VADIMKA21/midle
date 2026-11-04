@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { getCurrentSession } from "../../../../lib/session";
 import { getPool } from "../../../../lib/db";
 
@@ -11,16 +12,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
-  const session = await getCurrentSession();
-  if (!session?.userId || !session.channelId) {
-    return NextResponse.json({ error: "Sign in with Twitch to vote." }, { status: 401 });
-  }
-
-  const pool = getPool();
-  const client = await pool.connect();
+  let client: PoolClient | null = null;
+  let transactionOpen = false;
 
   try {
+    const session = await getCurrentSession();
+    if (!session?.userId || !session.channelId) {
+      return NextResponse.json({ error: "Sign in with Twitch to vote." }, { status: 401 });
+    }
+
+    client = await getPool().connect();
     await client.query("BEGIN");
+    transactionOpen = true;
 
     const stateResult = await client.query<{ current_request_id: string | null }>(
       "SELECT current_request_id FROM queue_state WHERE channel_id = $1 FOR UPDATE",
@@ -30,6 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (!currentRequestId) {
       await client.query("ROLLBACK");
+      transactionOpen = false;
       return NextResponse.json({ error: "There is no active track to vote on." }, { status: 409 });
     }
 
@@ -40,6 +44,7 @@ export async function POST(request: NextRequest) {
 
     if (!currentResult.rowCount) {
       await client.query("ROLLBACK");
+      transactionOpen = false;
       return NextResponse.json({ error: "The active track has changed. Refresh the queue." }, { status: 409 });
     }
 
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
     );
 
     await client.query("COMMIT");
+    transactionOpen = false;
 
     return NextResponse.json({
       success: true,
@@ -64,9 +70,11 @@ export async function POST(request: NextRequest) {
       skipVotes: Number(countResult.rows[0]?.count || 0),
     });
   } catch {
-    await client.query("ROLLBACK");
+    if (client && transactionOpen) {
+      try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
+    }
     return NextResponse.json({ error: "Voting is temporarily unavailable." }, { status: 503 });
   } finally {
-    client.release();
+    client?.release();
   }
 }
