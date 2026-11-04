@@ -46,8 +46,9 @@ export async function GET(request: NextRequest) {
   const clientId = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
   const redirectUri = process.env.TWITCH_REDIRECT_URI;
+  const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
 
-  if (!clientId || !clientSecret || !redirectUri || !process.env.TOKEN_ENCRYPTION_KEY) {
+  if (!clientId || !clientSecret || !redirectUri || !broadcasterId || !process.env.TOKEN_ENCRYPTION_KEY) {
     return redirectWithStatus(request, "not-configured");
   }
 
@@ -122,17 +123,31 @@ export async function GET(request: NextRequest) {
       );
       const userId = userResult.rows[0].id;
 
-      const channelResult = await client.query<{ id: string }>(
-        `INSERT INTO channels (twitch_broadcaster_id, twitch_login, display_name)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (twitch_broadcaster_id) DO UPDATE SET
-           twitch_login = EXCLUDED.twitch_login,
-           display_name = EXCLUDED.display_name,
-           updated_at = NOW()
-         RETURNING id`,
-        [twitchUser.id, twitchUser.login, twitchUser.display_name],
-      );
-      const channelId = channelResult.rows[0].id;
+      // The service belongs to one configured broadcaster. Viewers may sign in,
+      // but they must never be able to create a channel and grant themselves owner access.
+      let channelId: string;
+      if (twitchUser.id === broadcasterId) {
+        const channelResult = await client.query<{ id: string }>(
+          `INSERT INTO channels (twitch_broadcaster_id, twitch_login, display_name)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (twitch_broadcaster_id) DO UPDATE SET
+             twitch_login = EXCLUDED.twitch_login,
+             display_name = EXCLUDED.display_name,
+             updated_at = NOW()
+           RETURNING id`,
+          [broadcasterId, twitchUser.login, twitchUser.display_name],
+        );
+        channelId = channelResult.rows[0].id;
+      } else {
+        const channelResult = await client.query<{ id: string }>(
+          "SELECT id FROM channels WHERE twitch_broadcaster_id = $1",
+          [broadcasterId],
+        );
+        if (!channelResult.rows[0]) {
+          throw new Error("The configured Fusion broadcaster has not connected Twitch yet.");
+        }
+        channelId = channelResult.rows[0].id;
+      }
 
       await client.query(
         "INSERT INTO channel_settings (channel_id) VALUES ($1) ON CONFLICT DO NOTHING",
@@ -142,12 +157,14 @@ export async function GET(request: NextRequest) {
         "INSERT INTO queue_state (channel_id) VALUES ($1) ON CONFLICT DO NOTHING",
         [channelId],
       );
-      await client.query(
-        `INSERT INTO channel_roles (channel_id, user_id, role)
-         VALUES ($1, $2, 'owner')
-         ON CONFLICT (channel_id, user_id) DO UPDATE SET role = 'owner'`,
-        [channelId, userId],
-      );
+      if (twitchUser.id === broadcasterId) {
+        await client.query(
+          `INSERT INTO channel_roles (channel_id, user_id, role)
+           VALUES ($1, $2, 'owner')
+           ON CONFLICT (channel_id, user_id) DO UPDATE SET role = 'owner'`,
+          [channelId, userId],
+        );
+      }
       await client.query(
         `INSERT INTO twitch_tokens
            (user_id, access_token_encrypted, refresh_token_encrypted, scopes, expires_at)
