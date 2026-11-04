@@ -18,9 +18,7 @@ type RefreshResponse = {
 export async function getBroadcasterAccessToken(): Promise<string> {
   const clientId = process.env.TWITCH_CLIENT_ID;
   const clientSecret = process.env.TWITCH_CLIENT_SECRET;
-  const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-
-  if (!clientId || !clientSecret || !broadcasterId) {
+  if (!clientId || !clientSecret) {
     throw new Error("Twitch broadcaster integration is not configured");
   }
 
@@ -33,11 +31,13 @@ export async function getBroadcasterAccessToken(): Promise<string> {
     const tokenResult = await client.query<StoredToken>(
       `SELECT tt.user_id, tt.access_token_encrypted,
               tt.refresh_token_encrypted, tt.expires_at
-       FROM twitch_tokens tt
-       JOIN users u ON u.id = tt.user_id
-       WHERE u.twitch_user_id = $1
+       FROM channels c
+       JOIN channel_roles cr ON cr.channel_id = c.id AND cr.role = 'owner'
+       JOIN users u ON u.id = cr.user_id AND u.twitch_user_id = c.twitch_broadcaster_id
+       JOIN twitch_tokens tt ON tt.user_id = u.id
+       ORDER BY c.created_at ASC
+       LIMIT 1
        FOR UPDATE OF tt`,
-      [broadcasterId],
     );
 
     const stored = tokenResult.rows[0];
