@@ -115,10 +115,15 @@ export async function POST(request: NextRequest) {
         [device.channelId],
       );
     } else {
-      await client.query(
-        "UPDATE requests SET status = 'failed', updated_at = NOW() WHERE id = $1 AND channel_id = $2 AND status IN ('queued', 'playing')",
+      const failedResult = await client.query(
+        "UPDATE requests SET status = 'failed', updated_at = NOW() WHERE id = $1 AND channel_id = $2 AND status IN ('queued', 'playing') RETURNING id",
         [body.requestId, device.channelId],
       );
+      if (!failedResult.rowCount) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return NextResponse.json({ error: "This request does not belong to this channel or cannot be failed." }, { status: 409 });
+      }
       if (currentRequestId === body.requestId) {
         await client.query(
           `UPDATE queue_state
