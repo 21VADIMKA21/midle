@@ -14,7 +14,8 @@ if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
 if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET || !TOKEN_ENCRYPTION_KEY) {
   throw new Error("Twitch application credentials and TOKEN_ENCRYPTION_KEY are required");
 }
-if (typeof WebSocket === "undefined") {
+const WebSocketClient = globalThis.WebSocket;
+if (!WebSocketClient) {
   throw new Error("Node.js 22 WebSocket support is required");
 }
 
@@ -590,7 +591,7 @@ function scheduleReconnect() {
 function connectEventSub(url, migrated) {
   if (stopping) return;
   console.log("[fusion-chat] Connecting to Twitch EventSub…");
-  const socket = new WebSocket(url);
+  const socket = new WebSocketClient(url);
   activeSocket = socket;
   lastMessageAt = Date.now();
 
