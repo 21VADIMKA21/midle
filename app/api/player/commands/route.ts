@@ -122,7 +122,6 @@ export async function GET(request: NextRequest) {
     await client.query("COMMIT");
 
     if (expiredCommands.rowCount) {
-      const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
       invalidateQueueCache();
     }
 
