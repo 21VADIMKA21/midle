@@ -68,7 +68,7 @@ web.on("error", (error) => {
 
 web.on("exit", (code, signal) => {
   shutdown("web process exited");
-  process.exit(code ?? (signal ? 1 : 0));
+  process.exit(code ?? (signal === "SIGTERM" || signal === "SIGINT" ? 0 : 1));
 });
 
 startWorker();
