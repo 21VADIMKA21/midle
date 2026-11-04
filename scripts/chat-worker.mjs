@@ -185,11 +185,14 @@ async function getOwnerContext(forceRefresh = false) {
       throw new Error("Twitch authorization belongs to a different account; reconnect the channel owner");
     }
     if (Array.isArray(validation.scopes)) {
-      scopes = validation.scopes;
-      await client.query(
-        "UPDATE twitch_tokens SET scopes = $2, updated_at = NOW() WHERE user_id = $1",
-        [row.owner_user_id, scopes],
-      );
+      const validatedScopes = validation.scopes;
+      if (JSON.stringify(validatedScopes) !== JSON.stringify(scopes)) {
+        await client.query(
+          "UPDATE twitch_tokens SET scopes = $2, updated_at = NOW() WHERE user_id = $1",
+          [row.owner_user_id, validatedScopes],
+        );
+      }
+      scopes = validatedScopes;
     }
 
     const requiredScopes = ["user:read:chat", "user:write:chat", "moderator:read:chatters"];
