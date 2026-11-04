@@ -117,7 +117,7 @@ async function getOwnerContext(forceRefresh = false) {
               tt.refresh_token_encrypted, tt.scopes, tt.expires_at
        FROM channels c
        JOIN channel_roles cr ON cr.channel_id = c.id AND cr.role = 'owner'
-       JOIN users u ON u.id = cr.user_id
+       JOIN users u ON u.id = cr.user_id AND u.twitch_user_id = c.twitch_broadcaster_id
        JOIN twitch_tokens tt ON tt.user_id = u.id
        ORDER BY c.created_at ASC
        LIMIT 1
