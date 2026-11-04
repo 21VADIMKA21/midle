@@ -9,6 +9,7 @@ type Track = {
   requester: string | null;
   duration: string | null;
   artworkUrl: string | null;
+  skipVotes?: number;
 };
 
 type Viewer = { displayName: string | null; login: string | null };
@@ -81,6 +82,23 @@ export default function Home() {
     }
   }
 
+  async function voteToSkip() {
+    try {
+      const response = await fetch("/api/queue/vote", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) {
+        setNotice(result.error || "Не удалось отправить голос.");
+        return;
+      }
+      setCurrentTrack((track) => track
+        ? { ...track, skipVotes: result.skipVotes }
+        : track);
+      setNotice(`Голос за пропуск учтён. Всего голосов: ${result.skipVotes}.`);
+    } catch {
+      setNotice("Не удалось отправить голос. Проверь соединение.");
+    }
+  }
+
   const playerLabel =
     playerStatus === "playing" ? "PLAYER ONLINE" :
     playerStatus === "paused" ? "PLAYER PAUSED" :
@@ -115,7 +133,7 @@ export default function Home() {
           <article className="now-card">
             <div className="cover"><div className="cover-glow"/><span className="cover-label">FUSION<br/>FM</span><span className="cover-symbol">◉</span></div>
             {currentTrack ? (
-              <div className="track-info"><span className="track-tag">СЕЙЧАС ИГРАЕТ</span><h3>{currentTrack.title}</h3><p>{currentTrack.artist}</p><div className="time-row"><span>Запросил: {currentTrack.requester || "зритель"}</span><span>{currentTrack.duration || "—"}</span></div></div>
+              <div className="track-info"><span className="track-tag">СЕЙЧАС ИГРАЕТ</span><h3>{currentTrack.title}</h3><p>{currentTrack.artist}</p><div className="time-row"><span>Запросил: {currentTrack.requester || "зритель"}</span><span>{currentTrack.duration || "—"}</span></div><div className="skip-actions">{viewer ? <button className="skip-vote" type="button" onClick={voteToSkip}>Голосовать за скип · {currentTrack.skipVotes || 0}</button> : <a className="skip-vote" href="/api/auth/twitch">Войти, чтобы голосовать</a>}</div></div>
             ) : (
               <div className="track-info"><span className="track-tag">ПОКА ПУСТО</span><h3>Нет активного трека</h3><p>Здесь появится композиция, когда будет подключён проигрыватель.</p></div>
             )}
