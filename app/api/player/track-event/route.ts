@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "../../../../lib/db";
 import { getPlayerDevice } from "../../../../lib/player-auth";
 import { invalidateQueueCache } from "../../../../lib/queue-cache";
+import { enqueueNextTrack } from "../../../../lib/player-queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 export async function POST(request: NextRequest) {
   let client: PoolClient | null = null;
   let transactionOpen = false;
+  let nextRequestId: string | null = null;
 
   try {
     const device = await getPlayerDevice(request);
@@ -155,13 +157,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (eventType === "finished" || eventType === "failed") {
+      nextRequestId = await enqueueNextTrack(client, device.channelId);
+    }
+
     await client.query("COMMIT");
     transactionOpen = false;
 
     const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
     if (broadcasterId) invalidateQueueCache(broadcasterId);
 
-    return NextResponse.json({ success: true, duplicate: false });
+    return NextResponse.json({ success: true, duplicate: false, nextRequestId });
   } catch {
     if (client && transactionOpen) {
       try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
