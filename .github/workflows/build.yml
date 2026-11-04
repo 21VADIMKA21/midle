@@ -39,13 +39,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+      - name: Resolve dependencies
+        run: npm install --no-audit --no-fund
       - name: Save npm lockfile
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -57,6 +52,8 @@ jobs:
             git commit -m "chore: add reproducible npm lockfile"
             git push
           fi
+      - name: Verify reproducible dependency install
+        run: npm ci --no-audit --no-fund
       - name: Lint application
         run: npm run lint
       - name: Apply database migrations
