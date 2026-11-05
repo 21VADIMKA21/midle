@@ -645,13 +645,6 @@ async function handleSkipCommand(owner, event, eventId, mode) {
         [owner.channelId, requestId],
       );
       await client.query(
-        `INSERT INTO skip_vote_sessions (channel_id, request_id, started_by, started_at, expires_at)
-         VALUES ($1, $2, $3, NOW(), NOW() + INTERVAL '10 minutes')
-         ON CONFLICT (channel_id, request_id) DO UPDATE
-         SET started_by = EXCLUDED.started_by, started_at = NOW(), expires_at = NOW() + INTERVAL '10 minutes'`,
-        [owner.channelId, requestId, userId],
-      );
-      await client.query(
         `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
          VALUES ($1, $2, 'music.skip.vote.started', $3::jsonb)`,
         [owner.channelId, userId, JSON.stringify({ requestId, viewerCount })],
@@ -661,8 +654,13 @@ async function handleSkipCommand(owner, event, eventId, mode) {
     }
 
     const session = await client.query(
-      `SELECT 1 FROM skip_vote_sessions
-       WHERE channel_id = $1 AND request_id = $2 AND expires_at > NOW()`,
+      `SELECT 1 FROM audit_log
+       WHERE channel_id = $1
+         AND action = 'music.skip.vote.started'
+         AND details->>'requestId' = $2
+         AND created_at > NOW() - INTERVAL '10 minutes'
+       ORDER BY created_at DESC
+       LIMIT 1`,
       [owner.channelId, requestId],
     );
     if (!session.rowCount) {
@@ -691,12 +689,6 @@ async function handleSkipCommand(owner, event, eventId, mode) {
     let commandQueued = false;
     if (skipVotes >= threshold) {
       commandQueued = await queueSkipCommand(client, owner, userId, requestId);
-      if (commandQueued) {
-        await client.query(
-          "DELETE FROM skip_vote_sessions WHERE channel_id = $1 AND request_id = $2",
-          [owner.channelId, requestId],
-        );
-      }
     }
 
     await client.query("COMMIT");
