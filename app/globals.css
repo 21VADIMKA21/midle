@@ -18,3 +18,21 @@
 
 
 .chat-worker-card{display:flex;align-items:center;justify-content:space-between;gap:20px}.chat-worker-indicator{max-width:48%;padding:9px 12px;border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--muted);font-size:12px;line-height:1.4;text-align:right}.chat-worker-indicator.is-connected{border-color:rgba(199,255,94,.35);color:var(--accent)}@media(max-width:640px){.chat-worker-card{align-items:flex-start;flex-direction:column}.chat-worker-indicator{max-width:100%;text-align:left}}
+
+
+/* Dashboard readability and action feedback */
+.dashboard-shell{max-width:1180px;padding-bottom:48px}
+.dashboard-shell .eyebrow{font-size:12px;letter-spacing:1.7px}
+.dashboard-shell .dashboard-intro>p:last-child,.dashboard-shell .dashboard-card>p,.dashboard-shell .muted{font-size:15px;line-height:1.7}
+.dashboard-shell .dashboard-card{padding:32px;margin-bottom:22px}
+.dashboard-shell .dashboard-card h2{font-size:27px}
+.dashboard-shell .dashboard-action,.dashboard-shell .revoke-action{font:600 14px Manrope,Arial,sans-serif;padding:14px 19px;min-height:48px}
+.dashboard-shell .dashboard-section-head{gap:22px}
+.dashboard-shell .chat-worker-indicator{font-size:14px;padding:12px 15px}
+.dashboard-shell .rights-confirmation{font-size:15px;line-height:1.65}
+.dashboard-shell .rights-confirmation input{width:19px;height:19px}
+.dashboard-shell .dashboard-message{position:sticky;bottom:12px;z-index:10;background:#20242d;border:1px solid #596174;border-radius:10px;padding:16px 20px;color:#fff;font-size:15px;line-height:1.5;box-shadow:0 8px 30px #0009}
+.pair-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.player-open-link{display:inline-flex;align-items:center;text-decoration:none}
+.dashboard-shell button:focus-visible,.dashboard-shell a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+@media(max-width:640px){.dashboard-shell .dashboard-card{padding:22px}.pair-actions{flex-direction:column}.pair-actions>*{width:100%;justify-content:center}.dashboard-shell .dashboard-section-head{align-items:stretch}}
