@@ -14,11 +14,13 @@ test("recognizes Russian and English track commands", () => {
 });
 
 test("recognizes skip commands without accepting trailing arguments", () => {
-  assert.deepEqual(parseChatCommand("!скип"), { command: "skip", argument: "" });
-  assert.deepEqual(parseChatCommand("!skip now"), { command: "skip", argument: "" });
+  assert.deepEqual(parseChatCommand("!скип"), { command: "skip_start", argument: "" });
+  assert.deepEqual(parseChatCommand("!skip now"), { command: "skip_start", argument: "" });
 });
 
 test("ignores ordinary chat and unknown commands", () => {
+  assert.deepEqual(parseChatCommand("скип"), { command: "skip_vote", argument: "" });
+  assert.deepEqual(parseChatCommand("SKIP"), { command: "skip_vote", argument: "" });
   assert.equal(parseChatCommand("привет"), null);
   assert.equal(parseChatCommand("!song something"), null);
   assert.equal(parseChatCommand(""), null);

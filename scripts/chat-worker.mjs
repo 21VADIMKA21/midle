@@ -585,7 +585,7 @@ async function queueSkipCommand(client, owner, userId, requestId) {
   return true;
 }
 
-async function handleSkipCommand(owner, event, eventId) {
+async function handleSkipCommand(owner, event, eventId, mode) {
   const roleResult = await pool.query(
     `SELECT cr.role
      FROM users u
@@ -596,23 +596,20 @@ async function handleSkipCommand(owner, event, eventId) {
   );
   const role = roleResult.rows[0]?.role || null;
   const isModerator = role === "owner" || role === "moderator";
-  let chattersTotal = null;
-  if (!isModerator) {
-    try {
-      const viewerCount = await getLiveViewerCount(owner);
-      if (viewerCount === null) {
-        return "Голосование за пропуск доступно только во время эфира.";
-      }
-      chattersTotal = await getChattersTotal(owner);
-    } catch {
-      return "Не удалось проверить эфир или участников чата. Попробуй ещё раз позже.";
-    }
+  if (mode === "skip_start" && !isModerator) return null;
+
+  let viewerCount;
+  try {
+    viewerCount = await getLiveViewerCount(owner);
+    if (viewerCount === null) return "Голосование за пропуск доступно только во время эфира.";
+  } catch {
+    return "Не удалось проверить эфир. Попробуй ещё раз позже.";
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const eventRecord = await recordCommandEvent(client, owner, eventId, event, "skip");
+    const eventRecord = await recordCommandEvent(client, owner, eventId, event, mode);
     if (!eventRecord.inserted) {
       await client.query("ROLLBACK");
       return null;
@@ -642,15 +639,33 @@ async function handleSkipCommand(owner, event, eventId) {
       return "Трек уже сменился. Обнови очередь.";
     }
 
-    if (isModerator) {
-      const queued = await queueSkipCommand(client, owner, userId, requestId);
+    if (mode === "skip_start") {
+      await client.query(
+        "DELETE FROM votes WHERE channel_id = $1 AND request_id = $2",
+        [owner.channelId, requestId],
+      );
       await client.query(
         `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
-         VALUES ($1, $2, 'music.skip.forced.chat', $3::jsonb)`,
-        [owner.channelId, userId, JSON.stringify({ requestId })],
+         VALUES ($1, $2, 'music.skip.vote.started', $3::jsonb)`,
+        [owner.channelId, userId, JSON.stringify({ requestId, viewerCount })],
       );
       await client.query("COMMIT");
-      return queued ? "Модераторский пропуск отправлен." : "Проигрыватель сейчас не подключён.";
+      return "Голосование за пропуск открыто на 10 минут! Напишите «скип» или «skip», чтобы проголосовать.";
+    }
+
+    const session = await client.query(
+      `SELECT 1 FROM audit_log
+       WHERE channel_id = $1
+         AND action = 'music.skip.vote.started'
+         AND details->>'requestId' = $2
+         AND created_at > NOW() - INTERVAL '10 minutes'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [owner.channelId, requestId],
+    );
+    if (!session.rowCount) {
+      await client.query("COMMIT");
+      return null;
     }
 
     const settings = await client.query(
@@ -670,20 +685,15 @@ async function handleSkipCommand(owner, event, eventId) {
       [owner.channelId, requestId],
     );
     const skipVotes = count.rows[0]?.count || 0;
-    const threshold = Math.max(1, Math.ceil((chattersTotal ?? 0) * percent / 100));
+    const threshold = Math.max(1, Math.ceil(viewerCount * percent / 100));
     let commandQueued = false;
-
     if (skipVotes >= threshold) {
       commandQueued = await queueSkipCommand(client, owner, userId, requestId);
     }
 
     await client.query("COMMIT");
-    if (commandQueued) {
-      return "Порог голосования достигнут (" + skipVotes + "/" + threshold + "). Пропускаю трек.";
-    }
-    if (!inserted.rowCount) {
-      return "Твой голос уже учтён (" + skipVotes + "/" + threshold + ").";
-    }
+    if (commandQueued) return "Порог голосования достигнут (" + skipVotes + "/" + threshold + "). Пропускаю трек.";
+    if (!inserted.rowCount) return "Твой голос уже учтён (" + skipVotes + "/" + threshold + ").";
     return "Голос за пропуск учтён: " + skipVotes + "/" + threshold + ".";
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* connection may already be lost */ }
@@ -710,7 +720,7 @@ async function handleNotification(message) {
   if (command.command === "track") {
     reply = await handleTrackCommand(owner, event, eventId, command.argument);
   } else {
-    reply = await handleSkipCommand(owner, event, eventId);
+    reply = await handleSkipCommand(owner, event, eventId, command.command);
   }
 
   if (reply) {
