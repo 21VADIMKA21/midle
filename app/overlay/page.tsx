@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 type QueuePayload = {
   channel: { displayName: string | null; login: string | null } | null;
   currentTrack: { title: string; artist: string; artworkUrl: string | null; requester: string | null; duration: string | null; skipVotes: number } | null;
-  queue: Array<{ id: string; position: number; title: string; artist: string; artworkUrl: string | null; requester: string | null; duration: string | null }>;
+  queue: Array<{ id: string; position: number; title: string; artist: string; artworkUrl: string | null; requester: string | null; duration: string | null; status: string }>;
   player: { status: string; lastSeenAt?: string | null };
   revision: number;
 };
@@ -73,7 +73,7 @@ export default function OverlayPage() {
               {item.artworkUrl ? <img src={item.artworkUrl} alt="" style={{ width: 34, height: 34, borderRadius: 6, objectFit: "cover" }} /> : <span style={{ width: 34, height: 34, borderRadius: 6, background: "#292333", display: "grid", placeItems: "center", color: "#b98cff" }}>♫</span>}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</div>
-                <div style={{ fontSize: 10, color: "#9c93a8", marginTop: 3 }}>{item.artist} · {item.requester || "зритель"}</div>
+                <div style={{ fontSize: 10, color: "#9c93a8", marginTop: 3 }}>{item.artist} · {item.requester || "зритель"} · {item.status === "pending" ? "ожидает проверки" : "в очереди"}</div>
               </div>
               <span style={{ fontSize: 10, color: "#9c93a8" }}>{item.duration || ""}</span>
             </div>
