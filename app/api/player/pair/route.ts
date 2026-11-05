@@ -8,9 +8,45 @@ import { hashSessionToken } from "../../../../lib/security";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function hasValidOrigin(request: NextRequest): boolean {
+  const originHeader = request.headers.get("origin");
+  if (!originHeader) return false;
+
+  let origin: URL;
+  try {
+    origin = new URL(originHeader);
+  } catch {
+    return false;
+  }
+
+  if (origin.protocol !== "https:" && origin.protocol !== "http:") return false;
+  if (origin.username || origin.password) return false;
+
+  // Railway terminates TLS before forwarding requests to Next.js. The
+  // internal request URL can therefore differ from the browser's public URL.
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const requestHost = forwardedHost || request.headers.get("host") || request.nextUrl.host;
+  const allowedHosts = new Set([requestHost.toLowerCase()]);
+
+  const appUrl = process.env.APP_URL;
+  if (appUrl) {
+    try {
+      allowedHosts.add(new URL(appUrl).host.toLowerCase());
+    } catch {
+      // The request host remains the fallback if APP_URL is malformed.
+    }
+  }
+
+  if (!allowedHosts.has(origin.host.toLowerCase())) return false;
+
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (forwardedProto && origin.protocol !== `${forwardedProto}:`) return false;
+
+  return true;
+}
+
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin || origin !== request.nextUrl.origin) {
+  if (!hasValidOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
@@ -30,7 +66,6 @@ export async function POST(request: NextRequest) {
 
     client = await getPool().connect();
     await client.query("BEGIN");
-
     await client.query("SELECT id FROM channels WHERE id = $1 FOR UPDATE", [session.channelId]);
 
     const countResult = await client.query<{ count: string }>(
