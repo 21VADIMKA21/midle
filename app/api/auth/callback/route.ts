@@ -246,7 +246,8 @@ export async function GET(request: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     });
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[twitch-oauth] Callback failed:", error instanceof Error ? error.message : String(error));
     return redirectWithStatus(request, "failed", flow);
   }
 }
