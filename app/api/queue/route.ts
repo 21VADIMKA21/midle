@@ -61,7 +61,7 @@ export async function GET() {
          FROM requests r
          JOIN tracks t ON t.id = r.track_id
          JOIN users u ON u.id = r.requester_id
-         WHERE r.channel_id = $1 AND r.status IN ('queued', 'playing')
+         WHERE r.channel_id = $1 AND r.status IN ('pending', 'queued', 'playing')
          ORDER BY CASE WHEN r.status = 'playing' THEN 0 ELSE 1 END,
                   COALESCE(r.position, 2147483647), r.created_at
          LIMIT 100`,
@@ -89,7 +89,7 @@ export async function GET() {
 
     const rows = queueResult.rows;
     const current = rows.find((row) => row.status === "playing") || null;
-    const upcoming = rows.filter((row) => row.status === "queued");
+    const upcoming = rows.filter((row) => row.status === "pending" || row.status === "queued");
     const player = playerResult.rows[0];
     const playerFresh = !!player?.last_heartbeat_at &&
       Date.now() - new Date(player.last_heartbeat_at).getTime() < 45_000;
@@ -116,6 +116,7 @@ export async function GET() {
         artworkUrl: row.artwork_url,
         requester: row.requester_name,
         duration: formatDuration(row.duration_seconds),
+        status: row.status,
       })),
       player: {
         status: playerFresh ? player.status : "offline",
