@@ -127,21 +127,21 @@ export default function DashboardPage() {
 
   async function pairPlayer() {
     setBusy(true);
-    setMessage("Создаём защищённое подключение…");
+    setMessage("Создаём подключение. Подожди…");
     try {
       const response = await fetch("/api/player/pair", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Fusion Player Windows" }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setMessage(data.error || "Не удалось создать подключение.");
+        setMessage(data.error || `Ошибка сервера (${response.status}). Обнови страницу и попробуй ещё раз.`);
         return;
       }
       setPairToken(data.deviceToken);
       await loadDevices();
-      setMessage("Проигрыватель создан. Скопируй ключ — повторно он не показывается.");
+      setMessage("Готово! Ключ создан. Теперь открой Fusion Player и подключи его.");
     } catch {
       setMessage("Не удалось создать подключение. Проверь соединение.");
     } finally {
@@ -281,13 +281,13 @@ export default function DashboardPage() {
               <div><strong>{device.name}</strong><span>{device.status === "offline" ? "Не в сети" : "Подключён"} · {device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "ещё не подключался"}</span></div>
               <button className="revoke-action" type="button" onClick={() => revokeDevice(device.id)} disabled={busy}>Отключить</button>
             </div>
-          )) : <p className="muted">Пока нет подключённых проигрывателей. Создай ключ. Когда будет готов Fusion Player в Chrome/Edge, вставь его туда.</p>}
+          )) : <p className="muted">Нажми кнопку выше. После создания появится ключ и кнопка перехода к плееру.</p>}
 
           {pairToken ? (
             <div className="pair-token">
               <p className="eyebrow">ONE-TIME DEVICE KEY</p>
               <code>{pairToken}</code>
-              <button className="dashboard-action" type="button" onClick={copyToken}>Скопировать ключ</button>
+              <div className="pair-actions"><button className="dashboard-action" type="button" onClick={copyToken}>Скопировать ключ</button><Link className="dashboard-action player-open-link" href="/player">Открыть Fusion Player ↗</Link></div>
               <p className="fine-print">Ключ отображается только один раз. Не отправляй его другим людям и не публикуй в чате.</p>
             </div>
           ) : null}
@@ -327,7 +327,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      <p className="dashboard-message">{message}</p>
+      <p className="dashboard-message" role="status" aria-live="polite">{message}</p>
     </main>
   );
 }
