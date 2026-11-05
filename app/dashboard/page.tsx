@@ -54,6 +54,10 @@ export default function DashboardPage() {
             setMessage("Twitch не выдал необходимые разрешения. Повтори подключение и подтверди доступ к чтению и отправке сообщений, чаттерам и модерации.");
           } else if (authStatus === "not-owner") {
             setMessage("Этот Twitch-аккаунт не является владельцем настроенного канала.");
+          } else if (authStatus === "failed") {
+            setMessage("Twitch вернул тебя обратно, но сервер не завершил вход. Причину записали в журнал — сейчас проверяем и исправляем.");
+          } else if (authStatus === "not-configured") {
+            setMessage("На сервере не хватает настройки авторизации. Это нужно исправить в конфигурации.");
           } else {
             setMessage("Войди через Twitch как владелец канала, чтобы настроить Fusion Music.");
           }
