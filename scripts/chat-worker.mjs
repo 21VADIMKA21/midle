@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import pg from "pg";
-import { parseChatCommand, normalizeTrackSearch } from "../lib/chat-command.mjs";
+import { parseChatCommand, normalizeTrackSearch, parseMusicLink } from "../lib/chat-command.mjs";
 
 const { Pool } = pg;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -466,6 +466,77 @@ async function handleTrackCommand(owner, event, eventId, searchText) {
     }
 
     const userId = await ensureUser(client, event);
+
+    // External links are recorded as pending moderation requests. They are deliberately
+    // not sent to the local-file player or treated as broadcast-cleared audio.
+    const musicLink = parseMusicLink(searchText);
+    if (musicLink) {
+      const settings = await client.query(
+        "SELECT max_pending_per_user FROM channel_settings WHERE channel_id = $1 FOR UPDATE",
+        [owner.channelId],
+      );
+      const maxPending = settings.rows[0]?.max_pending_per_user ?? 1;
+      const pendingCount = await client.query(
+        `SELECT COUNT(*)::int AS count FROM requests
+         WHERE channel_id = $1 AND requester_id = $2
+           AND status IN ('pending', 'queued')`,
+        [owner.channelId, userId],
+      );
+      if (pendingCount.rows[0].count >= maxPending) {
+        await client.query("COMMIT");
+        return "У тебя уже есть активная заявка в очереди.";
+      }
+
+      const existingTrack = await client.query(
+        "SELECT id FROM tracks WHERE provider = $1 AND provider_track_id = $2",
+        [musicLink.provider, musicLink.providerTrackId],
+      );
+      let trackId = existingTrack.rows[0]?.id;
+      if (!trackId) {
+        const createdTrack = await client.query(
+          `INSERT INTO tracks (provider, provider_track_id, title, artist)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (provider, provider_track_id) DO UPDATE SET provider_track_id = EXCLUDED.provider_track_id
+           RETURNING id`,
+          [musicLink.provider, musicLink.providerTrackId, musicLink.provider === "youtube" ? "YouTube video " + musicLink.providerTrackId : "Spotify track " + musicLink.providerTrackId, "Неизвестный исполнитель"],
+        );
+        trackId = createdTrack.rows[0].id;
+      }
+
+      const duplicate = await client.query(
+        `SELECT 1 FROM requests
+         WHERE channel_id = $1 AND track_id = $2
+           AND status IN ('pending', 'queued', 'playing')
+         LIMIT 1`,
+        [owner.channelId, trackId],
+      );
+      if (duplicate.rowCount) {
+        await client.query("COMMIT");
+        return "Эта ссылка уже есть среди заявок.";
+      }
+
+      const requestResult = await client.query(
+        `INSERT INTO requests (channel_id, track_id, requester_id, status)
+         VALUES ($1, $2, $3, 'pending')
+         RETURNING id`,
+        [owner.channelId, trackId, userId],
+      );
+      await client.query(
+        `INSERT INTO audit_log (channel_id, actor_user_id, action, details)
+         VALUES ($1, $2, 'music.request.link_received', $3::jsonb)`,
+        [owner.channelId, userId, JSON.stringify({
+          requestId: requestResult.rows[0].id,
+          trackId,
+          provider: musicLink.provider,
+          providerTrackId: musicLink.providerTrackId,
+          canonicalUrl: musicLink.canonicalUrl,
+          source: "twitch_chat",
+        })],
+      );
+      await client.query("COMMIT");
+      return "Ссылку принял! Заявка сохранена и ожидает проверки источника и прав на трансляцию.";
+    }
+
     const settings = await client.query(
       `SELECT requests_enabled, max_pending_per_user, music_rights_confirmed_at
        FROM channel_settings WHERE channel_id = $1 FOR UPDATE`,
